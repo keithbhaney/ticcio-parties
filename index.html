@@ -123,6 +123,17 @@ select.input{cursor:pointer}
 .elim-reveal{text-align:center;padding:24px 16px}
 .elim-name{font-family:'Cinzel',serif;font-size:28px;font-weight:900;color:var(--elim);margin:12px 0}
 
+/* ── SORT IT CHALLENGE ── */
+.sort-item{background:var(--card);border:2px solid rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:grab;display:flex;align-items:center;gap:12px;font-weight:700;font-size:14px;transition:all .2s;user-select:none;touch-action:none}
+.sort-item:active{cursor:grabbing}
+.sort-item.dragging{opacity:.4;border-style:dashed}
+.sort-item.drag-over{border-color:var(--fire);background:rgba(255,107,53,0.1);transform:scale(1.02)}
+.sort-item.correct-pos{border-color:var(--immune);background:rgba(34,170,102,0.15)}
+.sort-item.wrong-pos{border-color:var(--elim);background:rgba(204,34,0,0.1)}
+.sort-num{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex-shrink:0;color:var(--muted)}
+.sort-handle{color:var(--muted);font-size:18px;margin-left:auto;flex-shrink:0}
+.sort-submitted .sort-item{cursor:default}
+
 /* ── TRIVIA CHALLENGE ── */
 .trivia-option{display:block;width:100%;background:var(--card);border:2px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .2s;color:var(--text);font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;text-align:left}
 .trivia-option:hover:not(:disabled){border-color:var(--fire);background:rgba(255,107,53,0.1)}
@@ -386,6 +397,22 @@ select.input{cursor:pointer}
 
         <div class="divider"></div>
 
+        <!-- Sort It launcher -->
+        <div id="sortLauncher">
+          <label>🔢 Sort It</label>
+          <select class="input input-sm" id="sortCategorySelect">
+            <option value="">Loading...</option>
+          </select>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div style="flex:1"><label>Timer (seconds)</label>
+              <input class="input input-sm" id="sortTimer" type="number" value="45" min="20" max="90" style="margin:0">
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="hostStartSortIt()" style="width:100%;margin-bottom:0">🔢 Launch Sort It</button>
+        </div>
+
+        <div class="divider"></div>
+
         <!-- Physical challenge launcher -->
         <div id="physicalLauncher">
           <label>Physical Challenge</label>
@@ -419,6 +446,19 @@ select.input{cursor:pointer}
       </div>
     </div>
 
+    <!-- Host Sort It panel -->
+    <div id="hostSortPanel" style="display:none">
+      <div class="host-panel">
+        <h4>🔢 Sort It — Host Controls</h4>
+        <div id="sortHostInfo" style="margin-bottom:10px"></div>
+        <div class="flex-row">
+          <button class="btn btn-outline btn-sm" onclick="hostSortReveal()">👁️ Reveal Answer</button>
+          <button class="btn btn-success btn-sm" onclick="hostSortEnd()">End + Award Immunity</button>
+        </div>
+        <div id="sortTallyHost" style="margin-top:10px"></div>
+      </div>
+    </div>
+
     <!-- Host trivia control panel -->
     <div id="hostTriviaPanel" style="display:none">
       <div class="host-panel">
@@ -445,6 +485,23 @@ select.input{cursor:pointer}
         <div style="font-size:32px;margin-bottom:8px">✅</div>
         <div style="font-weight:700;color:var(--immune)">Answers Submitted!</div>
         <div style="font-size:13px;color:var(--muted);margin-top:4px" id="picScoreMsg"></div>
+      </div>
+    </div>
+
+    <!-- Player Sort It UI -->
+    <div id="playerSortChallenge" style="display:none">
+      <div id="sortPromptDisplay" style="font-family:'Cinzel',serif;font-size:13px;color:var(--fire2);text-align:center;margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase"></div>
+      <div id="sortTimerText" class="timer-text">45</div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="sortTimerBar" style="width:100%"></div></div>
+      <div id="sortHint" style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:12px;font-style:italic"></div>
+      <div id="sortList" class="sort-submitted"></div>
+      <div id="sortSubmitArea" style="margin-top:12px">
+        <button class="btn btn-fire" id="sortSubmitBtn" onclick="submitSortAnswer()">Submit Order 🔢</button>
+      </div>
+      <div id="sortResultMsg" style="display:none;text-align:center;padding:16px">
+        <div style="font-size:28px;margin-bottom:8px">✅</div>
+        <div style="font-weight:700;color:var(--immune)">Answer Submitted!</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px" id="sortScoreMsg">Waiting for host to reveal...</div>
       </div>
     </div>
 
@@ -475,6 +532,10 @@ select.input{cursor:pointer}
       <div class="contest-card">
         <div class="contest-header"><div class="contest-icon">🎯</div><div><div style="font-weight:700;color:var(--text)">Estimation Showdown</div><span class="coming-badge">Coming Soon</span></div></div>
         <div class="contest-body"><p style="font-size:13px;color:var(--muted)">Closest guess to a mystery number wins.</p></div>
+      </div>
+      <div class="contest-card">
+        <div class="contest-header"><div class="contest-icon">🤔</div><div><div style="font-weight:700;color:var(--text)">Have You Ever?</div><span class="coming-badge">Coming Soon</span></div></div>
+        <div class="contest-body"><p style="font-size:13px;color:var(--muted)">Vote on who in the tribe has done something. Most votes wins immunity.</p></div>
       </div>
     </div>
   </div>
@@ -569,6 +630,7 @@ async function joinGame(){
 // ── SETUP ──
 async function loadCategories(){
   await loadTriviaCategories();
+  await loadSortCategories();
   try{
     const cats=await api('/categories');
     const sel=document.getElementById('picCategory');
@@ -687,6 +749,7 @@ async function hostOverride(playerName,qIndex,correct){
 
 function renderHostScoreTable(){
   const tc=gameState.triviaChallenge;
+  const sc=gameState.sortChallenge;
   const pc=gameState.pictureChallenge;
   if(!pc) return;
   const scores=pc.scores||{};
@@ -993,6 +1056,7 @@ function renderVotingTab(){
 
 function renderGamesTab(){
   const tc=gameState.triviaChallenge;
+  const sc=gameState.sortChallenge;
   const pc=gameState.pictureChallenge;
   const acd=document.getElementById('activeChallengeDisplay');
   const ppc=document.getElementById('playerPicChallenge');
@@ -1007,8 +1071,23 @@ function renderGamesTab(){
   // Trivia challenge display
   const hostTriPanel=document.getElementById('hostTriviaPanel');
   const playerTriPanel=document.getElementById('playerTriviaChallenge');
+  const hostSortPanel=document.getElementById('hostSortPanel');
+  const playerSortPanel=document.getElementById('playerSortChallenge');
   if(hostTriPanel) hostTriPanel.style.display='none';
   if(playerTriPanel) playerTriPanel.style.display='none';
+  if(hostSortPanel) hostSortPanel.style.display='none';
+  if(playerSortPanel) playerSortPanel.style.display='none';
+
+  if(sc&&gameState.phase==='challenge'){
+    csg.style.display='none';
+    if(isHost){ renderSortHostPanel(sc); }
+    else { renderSortForPlayer(sc); }
+    return;
+  } else if(sc&&sc.ended&&!isHost){
+    csg.style.display='none';
+    renderChallengeScores(sc);
+    return;
+  }
 
   if(tc&&gameState.phase==='challenge'&&!tc.ended){
     csg.style.display='none';
@@ -1086,6 +1165,7 @@ function startPolling(){
       // Reset pic submitted if round changed or challenge cleared
       if(!gameState.pictureChallenge) { picSubmitted=false; picAnswers=['','','','','']; if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;} }
       if(!gameState.triviaChallenge) { triviaAnswered=false; if(triviaTimerInterval){clearInterval(triviaTimerInterval);triviaTimerInterval=null;} }
+      if(!gameState.sortChallenge) { sortSubmitted=false; sortOrder=[]; if(sortTimerInterval){clearInterval(sortTimerInterval);sortTimerInterval=null;} }
       // Show elim modal on player screens when host reveals
       if(!isHost && gameState.revealed && gameState.phase==='reveal'){
         const lastElim=gameState.elimHistory[gameState.elimHistory.length-1];
@@ -1118,6 +1198,212 @@ function toast(msg,isError=false){
   t.style.color='var(--text)';
   t.style.display='block';
   setTimeout(()=>t.style.display='none',2800);
+}
+
+
+// ── SORT IT JS ──
+let sortTimerInterval = null;
+let sortSubmitted = false;
+let sortOrder = []; // current player ordering (array of item strings)
+let dragSrcIdx = null;
+
+async function loadSortCategories(){
+  try{
+    const cats = await fetch(API+'/sortit/categories').then(r=>r.json());
+    const sel = document.getElementById('sortCategorySelect');
+    if(sel) sel.innerHTML = cats.map(c=>`<option value="${c.key}">${c.label}</option>`).join('');
+  }catch(e){}
+}
+
+async function hostStartSortIt(){
+  const category = document.getElementById('sortCategorySelect').value;
+  const timeLimit = parseInt(document.getElementById('sortTimer').value)||45;
+  const immunityType = gameState.defaultImmunityType||'individual';
+  if(!category){ toast('Pick a category',true); return; }
+  await api('/sortit/start',{category,timeLimit,immunityType});
+  await loadState(); renderAll(); toast('Sort It launched! 🔢');
+}
+
+async function hostSortReveal(){
+  await api('/sortit/reveal',{});
+  await loadState(); renderAll(); toast('Answer revealed!');
+}
+
+async function hostSortEnd(){
+  const res = await api('/sortit/end',{});
+  await loadState(); renderAll();
+  if(res.immuneNames?.length) toast('Immunity: '+res.immuneNames.join(', ')+' 🛡️');
+}
+
+function startSortTimer(seconds){
+  if(sortTimerInterval) clearInterval(sortTimerInterval);
+  const start = Date.now();
+  const barEl = document.getElementById('sortTimerBar');
+  const textEl = document.getElementById('sortTimerText');
+  sortTimerInterval = setInterval(()=>{
+    const elapsed = (Date.now()-start)/1000;
+    const remaining = Math.max(0,seconds-elapsed);
+    if(textEl){ textEl.textContent=Math.ceil(remaining); textEl.className='timer-text'+(remaining<=10?' urgent':''); }
+    if(barEl) barEl.style.width=((remaining/seconds)*100)+'%';
+    if(remaining<=0){ clearInterval(sortTimerInterval); sortTimerInterval=null; if(!sortSubmitted) submitSortAnswer(); }
+  },300);
+}
+
+async function submitSortAnswer(){
+  if(sortSubmitted) return;
+  sortSubmitted = true;
+  if(sortTimerInterval){ clearInterval(sortTimerInterval); sortTimerInterval=null; }
+  try{
+    await fetch(API+'/sortit/answer',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({playerName:myName, orderedItems:sortOrder})});
+  }catch(e){}
+  document.getElementById('sortSubmitArea').style.display='none';
+  document.getElementById('sortResultMsg').style.display='block';
+  document.getElementById('sortList').classList.add('sort-submitted');
+}
+
+// ── DRAG AND DROP (mouse + touch) ──
+function initSortDrag(){
+  const list = document.getElementById('sortList');
+  if(!list) return;
+  const items = list.querySelectorAll('.sort-item');
+
+  items.forEach((item, idx) => {
+    // Mouse events
+    item.addEventListener('dragstart', e => { dragSrcIdx=idx; item.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    item.addEventListener('dragend', e => { item.classList.remove('dragging'); list.querySelectorAll('.sort-item').forEach(i=>i.classList.remove('drag-over')); });
+    item.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; item.classList.add('drag-over'); });
+    item.addEventListener('dragleave', e => { item.classList.remove('drag-over'); });
+    item.addEventListener('drop', e => {
+      e.preventDefault(); item.classList.remove('drag-over');
+      if(dragSrcIdx===null||dragSrcIdx===idx) return;
+      // Swap in sortOrder
+      const tmp = sortOrder[dragSrcIdx]; sortOrder[dragSrcIdx]=sortOrder[idx]; sortOrder[idx]=tmp;
+      renderSortList(false);
+    });
+
+    // Touch events for mobile
+    let touchStartY=0, touchItem=null, touchClone=null;
+    item.addEventListener('touchstart', e => {
+      touchStartY = e.touches[0].clientY;
+      dragSrcIdx = idx;
+      touchItem = item;
+      item.classList.add('dragging');
+      e.preventDefault();
+    }, {passive:false});
+
+    item.addEventListener('touchmove', e => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const els = document.elementsFromPoint(touch.clientX, touch.clientY);
+      const target = els.find(el=>el.classList.contains('sort-item')&&el!==item);
+      list.querySelectorAll('.sort-item').forEach(i=>i.classList.remove('drag-over'));
+      if(target) target.classList.add('drag-over');
+    }, {passive:false});
+
+    item.addEventListener('touchend', e => {
+      item.classList.remove('dragging');
+      const touch = e.changedTouches[0];
+      const els = document.elementsFromPoint(touch.clientX, touch.clientY);
+      const target = els.find(el=>el.classList.contains('sort-item')&&el!==item);
+      list.querySelectorAll('.sort-item').forEach(i=>i.classList.remove('drag-over'));
+      if(target){
+        const targetIdx = parseInt(target.dataset.idx);
+        if(!isNaN(targetIdx)&&targetIdx!==dragSrcIdx){
+          const tmp=sortOrder[dragSrcIdx]; sortOrder[dragSrcIdx]=sortOrder[targetIdx]; sortOrder[targetIdx]=tmp;
+          renderSortList(false);
+        }
+      }
+      dragSrcIdx=null;
+    });
+  });
+}
+
+function renderSortList(showResult){
+  const sc = gameState.sortChallenge;
+  if(!sc) return;
+  const list = document.getElementById('sortList');
+  if(!list) return;
+  list.innerHTML = sortOrder.map((item,i)=>{
+    let cls='sort-item';
+    if(showResult&&sc.revealed){
+      if(item===sc.correctOrder[i]) cls+=' correct-pos';
+      else cls+=' wrong-pos';
+    }
+    return `<div class="${cls}" draggable="true" data-idx="${i}">
+      <div class="sort-num">${i+1}</div>
+      <span style="flex:1">${item}</span>
+      <span class="sort-handle">⠿</span>
+    </div>`;
+  }).join('');
+  if(!sortSubmitted) initSortDrag();
+}
+
+function renderSortForPlayer(sc){
+  const wrap = document.getElementById('playerSortChallenge');
+  if(!sc){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+
+  document.getElementById('sortPromptDisplay').textContent=sc.prompt||'Put in the correct order';
+  document.getElementById('sortHint').textContent=sc.hint||'';
+
+  // Init sortOrder from shuffled if not yet set or new challenge
+  if(!sortSubmitted && sortOrder.length===0){
+    sortOrder=[...sc.shuffledItems];
+  }
+
+  // Timer
+  if(!sortSubmitted&&!sortTimerInterval){
+    const elapsed=(Date.now()-sc.startedAt)/1000;
+    const remaining=Math.max(0,sc.timeLimit-elapsed);
+    if(remaining>0) startSortTimer(remaining);
+  }
+
+  const alreadyAnswered=!!(sc.playerAnswers&&sc.playerAnswers[myName]);
+  if(alreadyAnswered&&!sortSubmitted){ sortSubmitted=true; }
+
+  if(sortSubmitted){
+    document.getElementById('sortSubmitArea').style.display='none';
+    document.getElementById('sortResultMsg').style.display='block';
+    // Show correct order if revealed
+    if(sc.revealed&&sc.correctOrder){
+      sortOrder=sc.correctOrder;
+      renderSortList(true);
+      const myAnswer=sc.playerAnswers[myName]||[];
+      const correct=myAnswer.filter((item,i)=>item===sc.correctOrder[i]).length;
+      const pts=sc.scores[myName]||0;
+      document.getElementById('sortScoreMsg').textContent=`You got ${correct}/4 correct · ${pts} points`;
+    } else {
+      renderSortList(false);
+    }
+  } else {
+    document.getElementById('sortSubmitArea').style.display='block';
+    document.getElementById('sortResultMsg').style.display='none';
+    renderSortList(false);
+  }
+}
+
+function renderSortHostPanel(sc){
+  const panel=document.getElementById('hostSortPanel');
+  if(!sc){ panel.style.display='none'; return; }
+  panel.style.display='block';
+
+  const answered=Object.keys(sc.playerAnswers||{}).length;
+  const alive=gameState.players.filter(p=>!p.eliminated).length;
+  document.getElementById('sortHostInfo').innerHTML=`
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${answered}/${alive} players submitted</div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px">${sc.categoryLabel}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">${sc.prompt}</div>
+    ${sc.revealed?`<div style="margin-top:8px"><div style="font-size:11px;color:var(--immune);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Correct Order</div>
+    ${sc.correctOrder.map((item,i)=>`<div style="font-size:12px;padding:3px 0;color:var(--text)">${i+1}. ${item}</div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--muted);font-style:italic">Correct order hidden until reveal</div>'}`;
+
+  const scores=sc.scores||{};
+  const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('sortTallyHost').innerHTML=sorted.length?`
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Scores</div>
+    ${sorted.map(([name,pts])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px">
+      <span style="font-weight:700">${name}</span><span style="color:var(--fire2);font-weight:700">${pts} pts</span>
+    </div>`).join('')}`:'';
 }
 
 // ── TRIVIA JS ──
