@@ -271,8 +271,15 @@ select.input{cursor:pointer}
     </div>
     <div id="hostTeamPanel" style="display:none;margin-bottom:12px">
       <div class="host-panel">
-        <h4>👥 Reassign Player Teams</h4>
+        <h4>👥 Tribe Management</h4>
         <div id="teamReassignList"></div>
+        <div style="margin-top:10px">
+          <label>Merge Tribe Name</label>
+          <div style="display:flex;gap:8px">
+            <input class="input input-sm" id="mergeNameInput" placeholder="No Mercy" style="margin:0;flex:1">
+            <button class="btn btn-danger btn-sm" onclick="hostMergeTribes()">⚔️ Merge!</button>
+          </div>
+        </div>
       </div>
     </div>
     <div id="phaseBannerBracket" class="phase-banner phase-active">✅ Game On</div>
@@ -291,15 +298,22 @@ select.input{cursor:pointer}
     <div id="hostVotingPanel" style="display:none">
       <div class="host-panel">
         <h4>🎬 Host Controls — Voting</h4>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;margin-bottom:8px;background:rgba(204,34,0,0.08);border-radius:8px;padding:8px 10px">
+          <span style="font-size:12px;color:var(--muted);text-transform:none;letter-spacing:0">⚡ Double Elimination</span>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="doubleElimToggle" onchange="document.getElementById('doubleElimLabel').textContent=this.checked?'ON':'Off'" style="width:16px;height:16px;cursor:pointer;accent-color:var(--elim)">
+            <span id="doubleElimLabel" style="font-size:12px;font-weight:700;color:var(--fire2)">Off</span>
+          </label>
+        </div>
         <div class="flex-row" style="margin-bottom:8px">
           <button class="btn btn-outline btn-sm" onclick="hostOpenVoting()">Open Voting</button>
           <button class="btn btn-outline btn-sm" onclick="hostCloseVoting()">Close Voting</button>
         </div>
-        <div class="flex-row">
-          <button class="btn btn-danger btn-sm" onclick="hostRevealElim()">Reveal Elimination</button>
+        <div class="flex-row" style="margin-bottom:8px">
+          <button class="btn btn-danger btn-sm" id="revealBtn" onclick="hostRevealElim()">🕯️ Reveal #1</button>
           <button class="btn btn-ghost btn-sm" onclick="hostNextRound()">Next Round →</button>
         </div>
-        <div style="margin-top:8px">
+        <div style="margin-top:4px">
           <button class="btn btn-ghost btn-sm" onclick="hostEndGame()" style="width:100%;color:var(--elim);border:1px solid rgba(204,34,0,0.3)">🏁 End Game Manually</button>
         </div>
       </div>
@@ -655,7 +669,10 @@ function renderHostScoreTable(){
 
 // ── VOTING CONTROLS ──
 async function hostOpenVoting(){
-  await api('/voting/open',{}); await loadState(); renderAll(); toast('Voting is open!');
+  const doubleElim = document.getElementById('doubleElimToggle')?.checked || false;
+  await api('/voting/open',{doubleElim});
+  await loadState(); renderAll();
+  toast(doubleElim ? 'Voting open — DOUBLE ELIMINATION! ⚡' : 'Voting is open!');
 }
 async function hostCloseVoting(){
   await api('/voting/close',{}); await loadState(); renderAll(); toast('Voting closed — reveal when ready');
@@ -668,7 +685,19 @@ async function hostRevealElim(){
     document.getElementById('elimTeam').textContent=res.eliminated.team?'Team: '+res.eliminated.team:'';
     document.getElementById('elimModal').classList.add('active');
   }
-  await loadState(); renderAll();
+  await loadState();
+  // Update reveal button for double elim
+  const revealBtn = document.getElementById('revealBtn');
+  if(revealBtn){
+    if(gameState.doubleElim && gameState.revealCount===1){
+      revealBtn.textContent='🕯️ Reveal #2';
+      revealBtn.style.background='linear-gradient(135deg,#5a0000,#CC2200)';
+    } else {
+      revealBtn.textContent='🕯️ Reveal #1';
+      revealBtn.style.background='';
+    }
+  }
+  renderAll();
 }
 async function hostNextRound(){
   await api('/round/next',{});
@@ -800,7 +829,7 @@ function openLightbox(src,hint){
 function closeLightbox(){ document.getElementById('lightbox').classList.remove('active'); }
 
 // ── RENDER ──
-function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHostPanels(); }
+function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHostPanels(); if(isHost) updateRevealBtn(); }
 
 function renderHeader(){
   document.getElementById('gameNameDisplay').textContent=gameState.gameName;
@@ -949,6 +978,17 @@ function renderGamesTab(){
   }
 }
 
+function updateRevealBtn(){
+  const btn=document.getElementById('revealBtn');
+  if(!btn) return;
+  if(gameState.doubleElim && gameState.revealCount===1){
+    btn.textContent='🕯️ Reveal #2';
+    btn.style.background='linear-gradient(135deg,#5a0000,#CC2200)';
+  } else {
+    btn.textContent='🕯️ Reveal #1';
+    btn.style.background='';
+  }
+}
 function renderHostPanels(){
   document.getElementById('hostVotingPanel').style.display=isHost?'block':'none';
   document.getElementById('playerVotingPanel').style.display=isHost?'none':'block';
@@ -1011,6 +1051,15 @@ function toast(msg,isError=false){
   setTimeout(()=>t.style.display='none',2800);
 }
 
+// ── MERGE TRIBES ──
+async function hostMergeTribes(){
+  const name = document.getElementById('mergeNameInput').value.trim() || 'No Mercy';
+  if(!confirm('Merge all tribes into "'+name+'"? This cannot be undone.')) return;
+  await api('/merge', {tribeName: name});
+  await loadState(); renderAll();
+  toast('⚔️ Tribes merged into '+name+'!');
+}
+
 // ── HOST END GAME ──
 async function hostEndGame(){
   if(!confirm('End the game now and declare a winner?')) return;
@@ -1068,6 +1117,15 @@ function renderTeamReassign(){
       <select class="player-team-select" onchange="hostReassignTeam('${p.name}',this.value)">${opts}</select>
     </div>`;
   }).join('');
+}
+
+// ── MERGE TRIBES ──
+async function hostMergeTribes(){
+  const name = document.getElementById('mergeNameInput').value.trim() || 'No Mercy';
+  if(!confirm('Merge all tribes into "'+name+'"? This cannot be undone.')) return;
+  await api('/merge', {tribeName: name});
+  await loadState(); renderAll();
+  toast('⚔️ Tribes merged into '+name+'!');
 }
 
 // ── HOST END GAME ──
