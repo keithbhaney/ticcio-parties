@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="referrer" content="no-referrer">
 <title>Ticcio Parties</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -732,7 +733,7 @@ function renderPicChallenge(pc){
   grid.innerHTML=pc.questions.map((q,i)=>`
     <div class="pic-item ${picAnswers[i]?'answered':''}" id="picItem${i}">
       <div class="pic-num">Image ${i+1} of 5</div>
-      <img class="pic-thumb" src="${q.image}" alt="Image ${i+1}" onclick="openLightbox('${q.image}','${q.hint||''}')" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><rect width=%22200%22 height=%22200%22 fill=%22%23222F42%22/><text x=%2250%%22 y=%2250%%22 fill=%22%238A9BB5%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22 font-size=%2240%22>?</text></svg>'">
+      <img class="pic-thumb" src="${q.image}" alt="Image ${i+1}" referrerpolicy="no-referrer" onclick="openLightbox('${q.image}','${q.hint||''}')" loading="lazy" onerror="this.outerHTML='<div style=\'width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;background:#1A2535\'><div style=\'font-size:28px\'>🖼️</div><div style=\'font-size:10px;color:#8A9BB5;text-align:center;padding:4px\'>Tap hint below</div></div>'">
       <div class="pic-input-wrap">
         <input class="pic-input" type="text" placeholder="Your answer..." value="${picAnswers[i]}" oninput="picAnswers[${i}]=this.value;document.getElementById('picItem${i}').className='pic-item '+(this.value?'answered':'')">
       </div>
