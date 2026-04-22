@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Cory Bash</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --fire:#FF6B35;--fire2:#FFB347;--ember:#FF4500;
+    --deep:#0A0F1A;--dark:#111827;--card:#1A2535;--card2:#222F42;
+    --text:#F5ECD7;--muted:#8A9BB5;--accent:#FFB347;
+    --elim:#CC2200;--immune:#22AA66;--voting:#FFB347;
+  }
+  html,body{height:100%;background:var(--deep);color:var(--text);font-family:'Nunito',sans-serif;overflow-x:hidden}
+  body{display:flex;flex-direction:column;min-height:100vh}
+
+  .header{background:linear-gradient(135deg,#0A0F1A 0%,#1a1205 100%);border-bottom:1px solid rgba(255,107,53,0.3);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .logo{font-family:'Cinzel',serif;font-size:22px;font-weight:900;background:linear-gradient(90deg,var(--fire),var(--fire2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px}
+  .logo-sub{font-size:9px;letter-spacing:4px;color:var(--muted);text-transform:uppercase;margin-top:-2px}
+  .round-badge{background:rgba(255,107,53,0.15);border:1px solid rgba(255,107,53,0.4);border-radius:20px;padding:4px 14px;font-size:12px;color:var(--fire2);font-weight:700;letter-spacing:1px}
+
+  .status-bar{background:rgba(255,107,53,0.08);border-bottom:1px solid rgba(255,107,53,0.15);padding:8px 16px;display:flex;align-items:center;gap:10px;font-size:12px}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--fire);animation:pulse 1.5s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+
+  .tabs{display:flex;background:var(--dark);border-bottom:1px solid rgba(255,255,255,0.08)}
+  .tab{flex:1;padding:12px 4px;text-align:center;font-size:12px;font-weight:700;letter-spacing:.5px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;text-transform:uppercase}
+  .tab.active{color:var(--fire2);border-bottom-color:var(--fire)}
+  .tab-icon{font-size:18px;display:block;margin-bottom:2px}
+
+  .section{display:none;padding:16px;flex:1}
+  .section.active{display:block}
+
+  .tribe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:10px;margin-top:8px}
+  .player-card{background:var(--card);border-radius:12px;padding:12px 8px;text-align:center;border:1px solid rgba(255,255,255,0.08);transition:all .3s;position:relative;overflow:hidden}
+  .player-card.immune{border-color:var(--immune);box-shadow:0 0 12px rgba(34,170,102,0.3)}
+  .player-card.eliminated{opacity:.4;filter:grayscale(1)}
+  .player-card.eliminated::after{content:'X';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;font-family:'Cinzel',serif;font-weight:900;color:var(--elim);opacity:.6}
+  .player-card.voting-target{border-color:var(--voting);animation:flicker .8s infinite alternate}
+  @keyframes flicker{from{box-shadow:0 0 6px rgba(255,179,71,0.3)}to{box-shadow:0 0 16px rgba(255,179,71,0.6)}}
+  .player-avatar{width:52px;height:52px;border-radius:50%;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Cinzel',serif;font-size:18px}
+  .player-name{font-size:11px;font-weight:700;color:var(--text);word-break:break-word;line-height:1.2}
+  .player-status{font-size:10px;margin-top:4px;height:14px}
+  .vote-count{position:absolute;top:6px;right:6px;background:var(--elim);color:white;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+
+  .game-card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.08)}
+  .game-card h3{font-family:'Cinzel',serif;font-size:15px;color:var(--fire2);margin-bottom:8px}
+
+  .btn{display:block;width:100%;padding:13px;border-radius:10px;border:none;font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;text-align:center;letter-spacing:.5px}
+  .btn-fire{background:linear-gradient(135deg,var(--ember),var(--fire2));color:var(--deep)}
+  .btn-fire:hover{opacity:.9;transform:translateY(-1px)}
+  .btn-outline{background:transparent;border:1px solid rgba(255,107,53,0.5);color:var(--fire2)}
+  .btn-outline:hover{background:rgba(255,107,53,0.1)}
+  .btn-danger{background:linear-gradient(135deg,#8B0000,var(--elim));color:white}
+  .btn-sm{padding:8px 14px;font-size:12px;width:auto;display:inline-block}
+  .btn-ghost{background:rgba(255,255,255,0.06);color:var(--muted);border:none}
+
+  .input{width:100%;background:var(--card2);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px 14px;color:var(--text);font-family:'Nunito',sans-serif;font-size:14px;margin-bottom:10px;outline:none}
+  .input:focus{border-color:var(--fire);box-shadow:0 0 0 2px rgba(255,107,53,0.2)}
+  label{font-size:12px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;display:block}
+
+  .roster-item{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--card2);border-radius:8px;margin-bottom:6px;font-size:13px;font-weight:600}
+  .roster-x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px}
+  .roster-x:hover{color:var(--elim)}
+
+  .vote-player-btn{display:flex;align-items:center;gap:10px;width:100%;background:var(--card);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 14px;margin-bottom:8px;cursor:pointer;transition:all .2s;color:var(--text);font-family:'Nunito',sans-serif;font-size:13px;font-weight:700}
+  .vote-player-btn:hover:not(:disabled){border-color:var(--fire);background:rgba(255,107,53,0.08)}
+  .vote-player-btn.selected{border-color:var(--elim);background:rgba(204,34,0,0.15);color:white}
+  .vote-player-btn:disabled{opacity:.4;cursor:not-allowed}
+  .vote-mini-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;font-family:'Cinzel',serif;flex-shrink:0}
+
+  .section-title{font-family:'Cinzel',serif;font-size:18px;color:var(--fire2);margin-bottom:4px}
+  .section-sub{font-size:12px;color:var(--muted);margin-bottom:16px}
+  .divider{height:1px;background:rgba(255,255,255,0.08);margin:16px 0}
+
+  .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e3a2f;border:1px solid var(--immune);color:var(--text);padding:10px 20px;border-radius:20px;font-size:13px;font-weight:700;z-index:999;display:none;white-space:nowrap}
+
+  .host-panel{background:rgba(255,107,53,0.06);border:1px solid rgba(255,107,53,0.25);border-radius:14px;padding:14px;margin-bottom:16px}
+  .host-panel h4{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--fire);margin-bottom:10px}
+
+  .screen{display:none}
+  .screen.active{display:block}
+
+  .join-hero{text-align:center;padding:40px 20px 20px}
+  .join-hero .big-logo{font-family:'Cinzel',serif;font-size:36px;font-weight:900;background:linear-gradient(135deg,var(--fire),var(--fire2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+  .join-hero .tagline{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:32px}
+  .torch{font-size:48px;animation:flameFloat 2s ease-in-out infinite;display:block}
+  @keyframes flameFloat{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:500;display:none;align-items:flex-end;justify-content:center}
+  .modal-overlay.active{display:flex}
+  .modal-sheet{background:var(--dark);border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:500px;border-top:1px solid rgba(255,107,53,0.3)}
+
+  .immune-badge{display:inline-block;background:rgba(34,170,102,0.2);border:1px solid var(--immune);color:var(--immune);border-radius:20px;font-size:9px;padding:2px 8px;font-weight:700;letter-spacing:.5px}
+
+  .elim-reveal{text-align:center;padding:30px 20px}
+  .elim-name{font-family:'Cinzel',serif;font-size:32px;font-weight:900;color:var(--elim);margin:16px 0}
+
+  .contest-card{background:var(--card);border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;margin-bottom:12px}
+  .contest-header{padding:14px 16px;background:linear-gradient(135deg,rgba(255,107,53,0.15),transparent);display:flex;align-items:center;gap:12px}
+  .contest-icon{font-size:28px}
+  .contest-body{padding:12px 16px 16px}
+  .coming-badge{display:inline-block;background:rgba(255,179,71,.15);border:1px solid rgba(255,179,71,.4);color:var(--fire2);border-radius:20px;font-size:10px;padding:3px 10px;font-weight:700;letter-spacing:.5px}
+
+  .survivor-bar{display:flex;align-items:center;justify-content:space-between;background:var(--card2);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+  .survivor-count{font-family:'Cinzel',serif;font-size:24px;color:var(--fire2);font-weight:700}
+
+  .phase-banner{border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;font-weight:700;letter-spacing:.5px;text-align:center;text-transform:uppercase}
+  .phase-lobby{background:rgba(138,155,181,0.15);color:var(--muted);border:1px solid rgba(138,155,181,0.3)}
+  .phase-challenge{background:rgba(255,179,71,0.15);color:var(--fire2);border:1px solid rgba(255,179,71,0.4)}
+  .phase-voting{background:rgba(204,34,0,0.15);color:#FF6655;border:1px solid rgba(204,34,0,0.4)}
+  .phase-reveal{background:rgba(138,0,0,0.25);color:#FF4444;border:1px solid rgba(200,0,0,0.5)}
+
+  .flex-row{display:flex;gap:8px}
+  .flex-row .btn{flex:1}
+  .admin-toggle{text-align:center;padding-top:12px}
+  .admin-toggle a{font-size:11px;color:var(--muted);text-decoration:none;letter-spacing:.5px}
+</style>
+</head>
+<body>
+
+<!-- JOIN SCREEN -->
+<div id="joinScreen" class="screen active">
+  <div class="join-hero">
+    <span class="torch">🔥</span>
+    <div class="big-logo">TICCIO PARTIES</div>
+    <div class="tagline">SURVIVE · VOTE · WIN</div>
+    <div class="game-card" style="text-align:left;max-width:400px;margin:0 auto">
+      <label>Your Name</label>
+      <input class="input" id="joinNameInput" placeholder="Enter your name..." autocomplete="off">
+      <button class="btn btn-fire" onclick="joinGame()">Enter the Tribe 🔥</button>
+    </div>
+    <div class="admin-toggle" style="margin-top:20px">
+      <a href="#" onclick="showHostLogin();return false;">Host / Admin Access</a>
+    </div>
+  </div>
+</div>
+
+<!-- HOST LOGIN -->
+<div id="hostLoginScreen" class="screen">
+  <div class="join-hero">
+    <span class="torch">🏝️</span>
+    <div class="big-logo" style="font-size:28px">HOST CONSOLE</div>
+    <div class="tagline">TICCIO PARTIES</div>
+    <div class="game-card" style="text-align:left;max-width:400px;margin:0 auto">
+      <label>Host Password</label>
+      <input class="input" id="hostPassInput" type="password" placeholder="Enter host password...">
+      <button class="btn btn-fire" onclick="hostLogin()">Enter Host Mode</button>
+      <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="showJoin()">← Back to Player Join</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="setupScreen" class="screen">
+  <div style="padding:16px">
+    <div class="section-title">Game Setup</div>
+    <div class="section-sub">Configure your tribe before the game starts</div>
+    <div class="game-card">
+      <label>Game Name</label>
+      <input class="input" id="gameNameInput" placeholder="e.g. Beach Night 2026" value="Ticcio Survivor">
+      <label>Host Password</label>
+      <input class="input" id="hostPassSetup" type="password" placeholder="Set a password for host access..." value="ticcio">
+      <label>Add Players</label>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <input class="input" id="addPlayerInput" placeholder="Player name..." style="margin:0;flex:1" onkeydown="if(event.key==='Enter')addPlayer()">
+        <button class="btn btn-outline btn-sm" onclick="addPlayer()">Add</button>
+      </div>
+      <div id="rosterList" style="margin-bottom:12px;max-height:280px;overflow-y:auto"></div>
+      <button class="btn btn-ghost btn-sm" onclick="loadSampleRoster()" style="margin-bottom:8px;width:100%">Load Sample Roster (for testing)</button>
+      <button class="btn btn-fire" onclick="startGame()" id="startBtn" disabled>🔥 Start the Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="mainApp" class="screen">
+  <div class="header">
+    <div>
+      <div class="logo">TICCIO PARTIES</div>
+      <div class="logo-sub" id="gameNameDisplay">Survivor</div>
+    </div>
+    <div class="round-badge" id="roundBadge">Round 1</div>
+  </div>
+  <div class="status-bar">
+    <div class="status-dot"></div>
+    <span id="statusText">Lobby · Waiting for players</span>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('bracket')" id="tab-bracket"><span class="tab-icon">🏝️</span>Tribe</div>
+    <div class="tab" onclick="showTab('voting')" id="tab-voting"><span class="tab-icon">🗳️</span>Vote</div>
+    <div class="tab" onclick="showTab('games')" id="tab-games"><span class="tab-icon">⚡</span>Games</div>
+  </div>
+
+  <!-- TRIBE TAB -->
+  <div class="section active" id="sect-bracket">
+    <div class="survivor-bar">
+      <div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Survivors</div>
+        <div class="survivor-count" id="survivorCount">—</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Eliminated</div>
+        <div class="survivor-count" id="elimCount" style="color:var(--elim)">—</div>
+      </div>
+    </div>
+    <div id="phaseBannerBracket" class="phase-banner phase-lobby">⏳ Lobby — Waiting to Begin</div>
+    <div class="tribe-grid" id="tribeGrid"></div>
+    <div id="elimSection" style="display:none;margin-top:16px">
+      <div class="divider"></div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Voted Out</div>
+      <div class="tribe-grid" id="elimGrid"></div>
+    </div>
+  </div>
+
+  <!-- VOTING TAB -->
+  <div class="section" id="sect-voting">
+    <div id="phaseBannerVoting" class="phase-banner phase-lobby">⏳ No active vote</div>
+    <div id="hostVotingPanel" style="display:none">
+      <div class="host-panel">
+        <h4>🎬 Host Controls</h4>
+        <div class="flex-row" style="margin-bottom:8px">
+          <button class="btn btn-outline btn-sm" onclick="hostStartVoting()">Open Voting</button>
+          <button class="btn btn-outline btn-sm" onclick="hostCloseVoting()">Close Voting</button>
+        </div>
+        <div class="flex-row">
+          <button class="btn btn-danger btn-sm" onclick="hostRevealElim()">Reveal Elimination</button>
+          <button class="btn btn-ghost btn-sm" onclick="hostNextRound()">Next Round →</button>
+        </div>
+      </div>
+      <div id="liveVoteTally" class="game-card" style="display:none">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Live Vote Tally (host only)</div>
+        <div id="tallyList"></div>
+      </div>
+    </div>
+    <div id="playerVotingPanel">
+      <div id="myVoteStatus" class="game-card" style="text-align:center;display:none">
+        <div style="font-size:24px;margin-bottom:6px">✅</div>
+        <div style="font-weight:700;color:var(--immune)">Vote Submitted</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px" id="myVoteFor">You voted for —</div>
+      </div>
+      <div id="voteList">
+        <div style="text-align:center;padding:40px 20px;color:var(--muted)">
+          <div style="font-size:36px;margin-bottom:12px">🔥</div>
+          <div style="font-weight:700">Waiting for Tribal Council</div>
+          <div style="font-size:13px;margin-top:6px">The host will open voting soon</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAMES TAB -->
+  <div class="section" id="sect-games">
+    <div class="section-title">Challenges</div>
+    <div class="section-sub">Win immunity — can't be voted out this round</div>
+    <div class="contest-card">
+      <div class="contest-header"><div class="contest-icon">🖼️</div><div><div style="font-weight:700;color:var(--text)">Picture ID Challenge</div><span class="coming-badge">Coming Soon</span></div></div>
+      <div class="contest-body"><p style="font-size:13px;color:var(--muted)">Identify mystery images before other players. First correct answer wins immunity.</p></div>
+    </div>
+    <div class="contest-card">
+      <div class="contest-header"><div class="contest-icon">⚡</div><div><div style="font-weight:700;color:var(--text)">Lightning Trivia</div><span class="coming-badge">Coming Soon</span></div></div>
+      <div class="contest-body"><p style="font-size:13px;color:var(--muted)">Speed trivia — fastest correct answer takes the immunity idol.</p></div>
+    </div>
+    <div class="contest-card">
+      <div class="contest-header"><div class="contest-icon">🎯</div><div><div style="font-weight:700;color:var(--text)">Estimation Showdown</div><span class="coming-badge">Coming Soon</span></div></div>
+      <div class="contest-body"><p style="font-size:13px;color:var(--muted)">Closest guess to a mystery number wins. Everyone plays simultaneously.</p></div>
+    </div>
+    <div class="contest-card">
+      <div class="contest-header"><div class="contest-icon">🤔</div><div><div style="font-weight:700;color:var(--text)">Have You Ever?</div><span class="coming-badge">Coming Soon</span></div></div>
+      <div class="contest-body"><p style="font-size:13px;color:var(--muted)">Vote on who in the tribe has done something. Most votes wins immunity.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ELIMINATION MODAL -->
+<div class="modal-overlay" id="elimModal">
+  <div class="modal-sheet">
+    <div class="elim-reveal">
+      <div style="font-size:64px;filter:grayscale(1)">🕯️</div>
+      <div style="font-size:13px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:12px">The Tribe Has Spoken</div>
+      <div class="elim-name" id="elimName">—</div>
+      <div style="font-size:13px;color:var(--muted)" id="elimVoteCount">with 0 votes</div>
+    </div>
+    <button class="btn btn-ghost" onclick="closeElimModal()">Dismiss</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'ticcio_parties_v1';
+const POLL_INTERVAL = 2500;
+let isHost = false;
+let myName = '';
+let myVote = null;
+let pollTimer = null;
+let lastStateHash = '';
+const HOST_PASS_DEFAULT = 'ticcio';
+
+const AVATAR_COLORS = [
+  {bg:'#FF6B35',text:'#0A0F1A'},{bg:'#FFB347',text:'#0A0F1A'},
+  {bg:'#22AA66',text:'#0A0F1A'},{bg:'#4A90D9',text:'#0A0F1A'},
+  {bg:'#9B59B6',text:'#F5ECD7'},{bg:'#E74C3C',text:'#F5ECD7'},
+  {bg:'#1ABC9C',text:'#0A0F1A'},{bg:'#F39C12',text:'#0A0F1A'},
+  {bg:'#2ECC71',text:'#0A0F1A'},{bg:'#E67E22',text:'#0A0F1A'},
+];
+function avatarColor(i){return AVATAR_COLORS[i%AVATAR_COLORS.length]}
+function initials(name){return name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+
+function defaultState(){
+  return {gameName:'Ticcio Survivor',hostPass:'ticcio',phase:'lobby',round:1,players:[],votes:{},revealed:false,elimHistory:[]};
+}
+let gameState = defaultState();
+
+// ── STORAGE (localStorage for standalone HTML) ──
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) gameState = JSON.parse(raw);
+  }catch(e){ gameState = defaultState(); }
+}
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState)); }catch(e){}
+}
+
+// ── SCREENS ──
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function showJoin(){ showScreen('joinScreen'); }
+function showHostLogin(){ showScreen('hostLoginScreen'); }
+
+function hostLogin(){
+  loadState();
+  const pass = document.getElementById('hostPassInput').value;
+  if(pass===gameState.hostPass||pass===HOST_PASS_DEFAULT){
+    isHost=true; myName='__host__';
+    if(gameState.players.length===0&&gameState.phase==='lobby'){
+      showScreen('setupScreen'); renderRoster();
+    } else {
+      showScreen('mainApp'); startPolling(); renderAll();
+    }
+  } else { toast('Wrong password',true); }
+}
+
+function joinGame(){
+  const name = document.getElementById('joinNameInput').value.trim();
+  if(!name){ toast('Enter your name!',true); return; }
+  loadState();
+  if(gameState.phase==='lobby'){ toast('Game not started yet — check back soon!',true); return; }
+  const match = gameState.players.find(p=>p.name.toLowerCase()===name.toLowerCase());
+  if(!match){ toast('Name not on the list — ask your host!',true); return; }
+  if(match.eliminated){ toast('You\'ve been voted out! 🔥',true); return; }
+  myName=match.name;
+  showScreen('mainApp'); startPolling(); renderAll();
+}
+
+// ── SETUP ──
+let rosterNames=[];
+function addPlayer(){
+  const inp=document.getElementById('addPlayerInput');
+  const n=inp.value.trim();
+  if(!n) return;
+  if(rosterNames.find(x=>x.toLowerCase()===n.toLowerCase())){ toast('Already added',true); return; }
+  rosterNames.push(n); inp.value=''; inp.focus(); renderRoster();
+}
+function removePlayer(i){ rosterNames.splice(i,1); renderRoster(); }
+function renderRoster(){
+  const el=document.getElementById('rosterList');
+  el.innerHTML=rosterNames.map((n,i)=>`<div class="roster-item"><span>${n}</span><button class="roster-x" onclick="removePlayer(${i})">✕</button></div>`).join('');
+  document.getElementById('startBtn').disabled=rosterNames.length<2;
+}
+function loadSampleRoster(){
+  rosterNames=['Alice','Bob','Carlos','Diana','Erik','Fiona','George','Hannah','Ivan','Julia'];
+  renderRoster();
+}
+function startGame(){
+  const gname=document.getElementById('gameNameInput').value.trim()||'Ticcio Survivor';
+  const hpass=document.getElementById('hostPassSetup').value.trim()||'ticcio';
+  gameState=defaultState();
+  gameState.gameName=gname; gameState.hostPass=hpass;
+  gameState.players=rosterNames.map(n=>({name:n,eliminated:false,immune:false,votes:0}));
+  gameState.phase='lobby';
+  saveState(); showScreen('mainApp'); startPolling(); renderAll();
+}
+
+// ── HOST CONTROLS ──
+function hostStartVoting(){
+  gameState.phase='voting'; gameState.votes={}; gameState.revealed=false;
+  gameState.players.forEach(p=>{p.votes=0;});
+  saveState(); renderAll(); toast('Voting is now open!');
+}
+function hostCloseVoting(){
+  const tally={};
+  gameState.players.filter(p=>!p.eliminated).forEach(p=>tally[p.name]=0);
+  Object.values(gameState.votes).forEach(t=>{if(tally[t]!==undefined)tally[t]++;});
+  gameState.players.forEach(p=>{p.votes=tally[p.name]||0;});
+  gameState.phase='reveal';
+  saveState(); renderAll(); toast('Voting closed — reveal when ready');
+}
+function hostRevealElim(){
+  const active=gameState.players.filter(p=>!p.eliminated);
+  if(!active.length) return;
+  const top=active.reduce((a,b)=>b.votes>a.votes?b:a,active[0]);
+  top.eliminated=true;
+  gameState.elimHistory.push({name:top.name,round:gameState.round,votes:top.votes});
+  gameState.phase='reveal'; gameState.revealed=true;
+  document.getElementById('elimName').textContent=top.name;
+  document.getElementById('elimVoteCount').textContent=`with ${top.votes} vote${top.votes!==1?'s':''}`;
+  document.getElementById('elimModal').classList.add('active');
+  saveState(); renderAll();
+}
+function hostNextRound(){
+  gameState.round++; gameState.phase='lobby';
+  gameState.players.forEach(p=>{p.immune=false;p.votes=0;});
+  gameState.votes={}; gameState.revealed=false;
+  const alive=gameState.players.filter(p=>!p.eliminated);
+  if(alive.length<=1) gameState.phase='done';
+  saveState(); renderAll();
+}
+function closeElimModal(){ document.getElementById('elimModal').classList.remove('active'); }
+
+// ── PLAYER VOTING ──
+function submitVote(target){
+  if(myVote) return;
+  loadState();
+  if(gameState.phase!=='voting'){ toast('Voting is not open',true); return; }
+  const me=gameState.players.find(p=>p.name===myName);
+  if(!me||me.eliminated){ toast('You\'re out!',true); return; }
+  if(gameState.votes[myName]){ toast('Already voted!',true); return; }
+  gameState.votes[myName]=target; myVote=target;
+  saveState(); renderVotingTab(); toast('Vote submitted! 🔥');
+}
+
+// ── RENDER ──
+function renderAll(){ renderHeader(); renderBracketTab(); renderVotingTab(); renderHostPanels(); }
+
+function renderHeader(){
+  document.getElementById('gameNameDisplay').textContent=gameState.gameName;
+  document.getElementById('roundBadge').textContent='Round '+gameState.round;
+  const phaseLabels={lobby:'Lobby',challenge:'Challenge',voting:'Tribal Council — Voting',reveal:'Results',done:'Game Over'};
+  document.getElementById('statusText').textContent=(phaseLabels[gameState.phase]||gameState.phase)+' · '+gameState.players.filter(p=>!p.eliminated).length+' survivors';
+}
+
+function renderBracketTab(){
+  const alive=gameState.players.filter(p=>!p.eliminated);
+  const elim=gameState.players.filter(p=>p.eliminated);
+  document.getElementById('survivorCount').textContent=alive.length;
+  document.getElementById('elimCount').textContent=elim.length;
+  updatePhaseBanner(document.getElementById('phaseBannerBracket'),gameState.phase);
+  document.getElementById('tribeGrid').innerHTML=alive.map(p=>{
+    const ci=gameState.players.indexOf(p);
+    const c=avatarColor(ci);
+    let cls='player-card';
+    if(p.immune) cls+=' immune';
+    if(gameState.phase==='voting'&&!p.immune) cls+=' voting-target';
+    return `<div class="${cls}">
+      <div class="player-avatar" style="background:${c.bg};color:${c.text}">${initials(p.name)}</div>
+      <div class="player-name">${p.name}</div>
+      <div class="player-status">${p.immune?'<span class="immune-badge">IMMUNE</span>':''}</div>
+      ${gameState.phase==='reveal'&&p.votes>0?`<div class="vote-count">${p.votes}</div>`:''}
+    </div>`;
+  }).join('');
+  if(elim.length){
+    document.getElementById('elimSection').style.display='block';
+    document.getElementById('elimGrid').innerHTML=elim.map(p=>{
+      const ci=gameState.players.indexOf(p);
+      const c=avatarColor(ci);
+      return `<div class="player-card eliminated"><div class="player-avatar" style="background:${c.bg};color:${c.text}">${initials(p.name)}</div><div class="player-name">${p.name}</div></div>`;
+    }).join('');
+  } else { document.getElementById('elimSection').style.display='none'; }
+}
+
+function updatePhaseBanner(el,phase){
+  el.className='phase-banner';
+  const map={lobby:['phase-lobby','⏳ Lobby — Waiting to Begin'],challenge:['phase-challenge','⚡ Challenge Round — Compete for Immunity'],voting:['phase-voting','🗳️ Tribal Council — Cast Your Vote'],reveal:['phase-reveal','🔥 Votes are in — Awaiting Reveal'],done:['phase-reveal','🏆 Game Over!']};
+  const [cls,txt]=map[phase]||['phase-lobby','⏳ Lobby'];
+  el.classList.add(cls); el.textContent=txt;
+}
+
+function renderVotingTab(){
+  updatePhaseBanner(document.getElementById('phaseBannerVoting'),gameState.phase);
+  const alive=gameState.players.filter(p=>!p.eliminated);
+  const alreadyVoted=myVote||(myName&&gameState.votes[myName]);
+  if(!isHost){
+    const myVoteStatus=document.getElementById('myVoteStatus');
+    const voteList=document.getElementById('voteList');
+    if(gameState.phase==='voting'&&!alreadyVoted){
+      myVoteStatus.style.display='none';
+      voteList.innerHTML=alive.map(p=>{
+        const c=avatarColor(gameState.players.indexOf(p));
+        const isMe=p.name===myName, isImmune=p.immune;
+        return `<button class="vote-player-btn" onclick="submitVote('${p.name}')" ${isMe||isImmune?'disabled':''}>
+          <div class="vote-mini-avatar" style="background:${c.bg};color:${c.text}">${initials(p.name)}</div>
+          <span>${p.name}${isImmune?' 🛡️ Immune':''}</span>
+          ${isMe?'<span style="margin-left:auto;font-size:11px;color:var(--muted)">You</span>':''}
+        </button>`;
+      }).join('');
+    } else if(gameState.phase==='voting'&&alreadyVoted){
+      myVoteStatus.style.display='block';
+      document.getElementById('myVoteFor').textContent='You voted for '+(myVote||gameState.votes[myName]);
+      voteList.innerHTML='';
+    } else {
+      myVoteStatus.style.display='none';
+      voteList.innerHTML=`<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:12px">🔥</div><div style="font-weight:700">${gameState.phase==='reveal'?'Tribal Council Closed':'Waiting for Tribal Council'}</div><div style="font-size:13px;margin-top:6px">${gameState.phase==='reveal'?'Host will reveal the result soon':'The host will open voting when ready'}</div></div>`;
+    }
+  }
+  if(isHost&&(gameState.phase==='voting'||gameState.phase==='reveal')){
+    const tally={};
+    alive.forEach(p=>tally[p.name]=0);
+    Object.values(gameState.votes).forEach(t=>{if(tally[t]!==undefined)tally[t]++;});
+    const sorted=Object.entries(tally).sort((a,b)=>b[1]-a[1]);
+    document.getElementById('liveVoteTally').style.display='block';
+    document.getElementById('tallyList').innerHTML=sorted.map(([name,count])=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+        <span style="font-weight:700">${name}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="background:rgba(255,107,53,0.3);height:6px;border-radius:3px;width:${Math.max(count*20,4)}px"></div>
+          <span style="color:var(--fire2);font-weight:700;font-size:15px">${count}</span>
+        </div>
+      </div>`).join('')+`<div style="font-size:11px;color:var(--muted);margin-top:8px">${Object.keys(gameState.votes).length} of ${alive.length-1} votes cast</div>`;
+  } else if(isHost){ document.getElementById('liveVoteTally').style.display='none'; }
+}
+
+function renderHostPanels(){
+  document.getElementById('hostVotingPanel').style.display=isHost?'block':'none';
+  document.getElementById('playerVotingPanel').style.display=isHost?'none':'block';
+}
+
+// ── TABS ──
+function showTab(name){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('sect-'+name).classList.add('active');
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ── POLLING ──
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer=setInterval(()=>{
+    loadState();
+    const hash=JSON.stringify(gameState);
+    if(hash!==lastStateHash){
+      lastStateHash=hash;
+      if(myName&&gameState.votes[myName]) myVote=gameState.votes[myName];
+      renderAll();
+    }
+  }, POLL_INTERVAL);
+}
+
+// ── TOAST ──
+function toast(msg,isError=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=isError?'#3a1a1a':'#1e3a2f';
+  t.style.borderColor=isError?'var(--elim)':'var(--immune)';
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',2500);
+}
+
+// ── INIT ──
+loadState();
+showScreen('joinScreen');
+</script>
+</body>
+</html>
