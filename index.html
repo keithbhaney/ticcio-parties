@@ -123,6 +123,15 @@ select.input{cursor:pointer}
 .elim-reveal{text-align:center;padding:24px 16px}
 .elim-name{font-family:'Cinzel',serif;font-size:28px;font-weight:900;color:var(--elim);margin:12px 0}
 
+/* ── TRIVIA CHALLENGE ── */
+.trivia-option{display:block;width:100%;background:var(--card);border:2px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .2s;color:var(--text);font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;text-align:left}
+.trivia-option:hover:not(:disabled){border-color:var(--fire);background:rgba(255,107,53,0.1)}
+.trivia-option.selected{border-color:var(--fire2);background:rgba(255,179,71,0.15)}
+.trivia-option.correct{border-color:var(--immune);background:rgba(34,170,102,0.2);color:var(--immune)}
+.trivia-option.wrong{border-color:var(--elim);background:rgba(204,34,0,0.15);color:#FF6655}
+.trivia-option:disabled{cursor:not-allowed}
+.option-letter{display:inline-block;width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,0.1);text-align:center;line-height:24px;font-size:12px;margin-right:10px;flex-shrink:0}
+
 /* ── PICTURE CHALLENGE ── */
 .pic-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
 .pic-item{background:var(--card2);border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,0.08);transition:all .2s}
@@ -171,7 +180,7 @@ select.input{cursor:pointer}
   <div class="join-hero">
     <span class="torch">🔥</span>
     <div class="big-logo">TICCIO PARTIES</div>
-    <div class="tagline">SURVIVE · VOTE · WIN</div>
+    <div class="tagline">PLAY · VOTE · WIN</div>
     <div class="game-card" style="text-align:left;max-width:400px;margin:0 auto">
       <label>Your Name</label>
       <input class="input" id="joinNameInput" placeholder="Enter your name..." autocomplete="off">
@@ -361,6 +370,22 @@ select.input{cursor:pointer}
 
         <div class="divider"></div>
 
+        <!-- Trivia launcher -->
+        <div id="triviaLauncher">
+          <label>⚡ Lightning Trivia</label>
+          <select class="input input-sm" id="triviaCategorySelect">
+            <option value="">Loading categories...</option>
+          </select>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div style="flex:1"><label>Seconds per question</label>
+              <input class="input input-sm" id="triviaTimer" type="number" value="15" min="8" max="30" style="margin:0">
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="hostStartTrivia()" style="width:100%;margin-bottom:0">⚡ Launch Trivia</button>
+        </div>
+
+        <div class="divider"></div>
+
         <!-- Physical challenge launcher -->
         <div id="physicalLauncher">
           <label>Physical Challenge</label>
@@ -394,6 +419,19 @@ select.input{cursor:pointer}
       </div>
     </div>
 
+    <!-- Host trivia control panel -->
+    <div id="hostTriviaPanel" style="display:none">
+      <div class="host-panel">
+        <h4>⚡ Trivia — Host Controls</h4>
+        <div id="triviaQDisplay" style="margin-bottom:10px"></div>
+        <div class="flex-row">
+          <button class="btn btn-outline btn-sm" onclick="hostTriviaNext()">Next Question →</button>
+          <button class="btn btn-success btn-sm" onclick="hostEndTrivia()">End + Award Immunity</button>
+        </div>
+        <div id="triviaTallyHost" style="margin-top:10px"></div>
+      </div>
+    </div>
+
     <!-- Active challenge display (players) -->
     <div id="activeChallengeDisplay" style="display:none"></div>
 
@@ -408,6 +446,16 @@ select.input{cursor:pointer}
         <div style="font-weight:700;color:var(--immune)">Answers Submitted!</div>
         <div style="font-size:13px;color:var(--muted);margin-top:4px" id="picScoreMsg"></div>
       </div>
+    </div>
+
+    <!-- Player trivia UI -->
+    <div id="playerTriviaChallenge" style="display:none">
+      <div id="triviaQNum" style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;text-align:center">Question 1 of 5</div>
+      <div id="triviaTimerText" class="timer-text">15</div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="triviaTimerBar" style="width:100%"></div></div>
+      <div id="triviaQuestion" class="game-card" style="text-align:center;font-size:15px;font-weight:700;line-height:1.4;margin-bottom:12px"></div>
+      <div id="triviaOptions" style="margin-bottom:12px"></div>
+      <div id="triviaFeedback" style="display:none;text-align:center;padding:16px;border-radius:12px;margin-bottom:12px;font-weight:700;font-size:15px"></div>
     </div>
 
     <!-- Scores after challenge ends -->
@@ -470,7 +518,7 @@ let rosterNames=[], teamNames=['Tribe Koa','Tribe Hale'];
 const HOST_PASS_DEFAULT='ticcio';
 
 function defaultState(){
-  return {gameName:'Ticcio Survivor',hostPass:'ticcio',phase:'active',round:1,eliminationMode:'individual',teams:[],players:[],votes:{},votingPool:[],immuneNames:[],currentChallenge:null,pictureChallenge:null,revealed:false,elimHistory:[],updatedAt:0};
+  return {gameName:'Ticcio Survivor',hostPass:'ticcio',phase:'active',round:1,eliminationMode:'individual',teams:[],players:[],votes:{},votingPool:[],immuneNames:[],currentChallenge:null,pictureChallenge:null,triviaChallenge:null,revealed:false,elimHistory:[],updatedAt:0};
 }
 let gameState=defaultState();
 
@@ -520,6 +568,7 @@ async function joinGame(){
 
 // ── SETUP ──
 async function loadCategories(){
+  await loadTriviaCategories();
   try{
     const cats=await api('/categories');
     const sel=document.getElementById('picCategory');
@@ -637,6 +686,7 @@ async function hostOverride(playerName,qIndex,correct){
 }
 
 function renderHostScoreTable(){
+  const tc=gameState.triviaChallenge;
   const pc=gameState.pictureChallenge;
   if(!pc) return;
   const scores=pc.scores||{};
@@ -942,6 +992,7 @@ function renderVotingTab(){
 }
 
 function renderGamesTab(){
+  const tc=gameState.triviaChallenge;
   const pc=gameState.pictureChallenge;
   const acd=document.getElementById('activeChallengeDisplay');
   const ppc=document.getElementById('playerPicChallenge');
@@ -952,6 +1003,23 @@ function renderGamesTab(){
   // Reset
   acd.style.display='none'; ppc.style.display='none';
   hps.style.display='none'; cs.style.display='none';
+
+  // Trivia challenge display
+  const hostTriPanel=document.getElementById('hostTriviaPanel');
+  const playerTriPanel=document.getElementById('playerTriviaChallenge');
+  if(hostTriPanel) hostTriPanel.style.display='none';
+  if(playerTriPanel) playerTriPanel.style.display='none';
+
+  if(tc&&gameState.phase==='challenge'&&!tc.ended){
+    csg.style.display='none';
+    if(isHost){ renderTriviaHostPanel(tc); }
+    else { renderTriviaForPlayer(tc); }
+    return;
+  } else if(tc&&tc.ended&&!isHost){
+    csg.style.display='none';
+    renderChallengeScores(tc);
+    return;
+  }
 
   if(pc&&gameState.phase==='challenge'){
     csg.style.display='none';
@@ -1017,6 +1085,7 @@ function startPolling(){
       if(myName&&gameState.votes[myName]) myVote=gameState.votes[myName];
       // Reset pic submitted if round changed or challenge cleared
       if(!gameState.pictureChallenge) { picSubmitted=false; picAnswers=['','','','','']; if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;} }
+      if(!gameState.triviaChallenge) { triviaAnswered=false; if(triviaTimerInterval){clearInterval(triviaTimerInterval);triviaTimerInterval=null;} }
       // Show elim modal on player screens when host reveals
       if(!isHost && gameState.revealed && gameState.phase==='reveal'){
         const lastElim=gameState.elimHistory[gameState.elimHistory.length-1];
@@ -1049,6 +1118,163 @@ function toast(msg,isError=false){
   t.style.color='var(--text)';
   t.style.display='block';
   setTimeout(()=>t.style.display='none',2800);
+}
+
+// ── TRIVIA JS ──
+let triviaTimerInterval = null;
+let triviaAnswered = false;
+let triviaQStartTime = null;
+
+async function loadTriviaCategories(){
+  try{
+    const cats = await fetch(API+'/trivia/categories').then(r=>r.json());
+    const sel = document.getElementById('triviaCategorySelect');
+    if(sel) sel.innerHTML = cats.map(c=>`<option value="${c.key}">${c.label}</option>`).join('');
+  }catch(e){}
+}
+
+async function hostStartTrivia(){
+  const category = document.getElementById('triviaCategorySelect').value;
+  const timePerQ = parseInt(document.getElementById('triviaTimer').value) || 15;
+  const immunityType = gameState.defaultImmunityType || 'individual';
+  if(!category){ toast('Pick a category',true); return; }
+  await api('/trivia/start', {category, timePerQ, immunityType});
+  await loadState(); renderAll(); toast('Trivia launched! ⚡');
+}
+
+async function hostTriviaNext(){
+  const res = await api('/trivia/next', {});
+  await loadState(); renderAll();
+  if(res.ended) toast('Trivia over! Award immunity when ready.');
+  else toast('Question '+(gameState.triviaChallenge.currentQ+1));
+}
+
+async function hostEndTrivia(){
+  const res = await api('/trivia/end', {});
+  await loadState(); renderAll();
+  if(res.immuneNames?.length) toast('Immunity: '+res.immuneNames.join(', ')+' 🛡️');
+}
+
+function startTriviaTimer(seconds){
+  if(triviaTimerInterval) clearInterval(triviaTimerInterval);
+  triviaQStartTime = Date.now();
+  const barEl = document.getElementById('triviaTimerBar');
+  const textEl = document.getElementById('triviaTimerText');
+  triviaTimerInterval = setInterval(()=>{
+    const elapsed = (Date.now()-triviaQStartTime)/1000;
+    const remaining = Math.max(0, seconds-elapsed);
+    if(textEl){ textEl.textContent=Math.ceil(remaining); textEl.className='timer-text'+(remaining<=5?' urgent':''); }
+    if(barEl) barEl.style.width=((remaining/seconds)*100)+'%';
+    if(remaining<=0){ clearInterval(triviaTimerInterval); triviaTimerInterval=null; }
+  }, 200);
+}
+
+async function submitTriviaAnswer(answerIndex, btn){
+  if(triviaAnswered) return;
+  triviaAnswered = true;
+  const timeTaken = triviaQStartTime ? (Date.now()-triviaQStartTime)/1000 : 15;
+  if(triviaTimerInterval){ clearInterval(triviaTimerInterval); triviaTimerInterval=null; }
+
+  // Disable all buttons
+  document.querySelectorAll('.trivia-option').forEach(b => b.disabled=true);
+  btn.classList.add('selected');
+
+  try{
+    const res = await fetch(API+'/trivia/answer',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({playerName:myName, answerIndex, timeTaken})});
+    const data = await res.json();
+    if(data.alreadyAnswered) return;
+
+    // Show result
+    document.querySelectorAll('.trivia-option').forEach((b,i)=>{
+      if(i===data.correctIndex) b.classList.add('correct');
+      else if(i===answerIndex && !data.correct) b.classList.add('wrong');
+    });
+
+    const fb = document.getElementById('triviaFeedback');
+    fb.style.display='block';
+    if(data.correct){
+      fb.style.background='rgba(34,170,102,0.2)';
+      fb.style.border='1px solid var(--immune)';
+      fb.style.color='var(--immune)';
+      fb.textContent = data.pts===3?'⚡ Lightning fast! +3 pts':data.pts===2?'✅ Quick! +2 pts':'✓ Correct! +1 pt';
+    } else {
+      fb.style.background='rgba(204,34,0,0.15)';
+      fb.style.border='1px solid var(--elim)';
+      fb.style.color='#FF6655';
+      fb.textContent='❌ Wrong! 0 pts';
+    }
+  }catch(e){ console.error(e); }
+}
+
+function renderTriviaForPlayer(tc){
+  const wrap = document.getElementById('playerTriviaChallenge');
+  if(!tc || tc.ended){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+
+  const q = tc.questions[tc.currentQ];
+  const qNum = tc.currentQ+1;
+  document.getElementById('triviaQNum').textContent = `Question ${qNum} of ${tc.questions.length}`;
+  document.getElementById('triviaQuestion').textContent = q.q;
+
+  // Reset per-question state
+  triviaAnswered = !!(tc.playerAnswers[myName] && tc.playerAnswers[myName][tc.currentQ] !== undefined);
+  const fb = document.getElementById('triviaFeedback');
+  fb.style.display='none';
+
+  // Start timer (calculate remaining from qStartedAt)
+  const elapsed = (Date.now()-tc.qStartedAt)/1000;
+  const remaining = Math.max(0, tc.timePerQ - elapsed);
+  if(!triviaAnswered && remaining>0) startTriviaTimer(remaining);
+
+  const letters = ['A','B','C','D'];
+  const myAnswer = tc.playerAnswers[myName]?.[tc.currentQ];
+  document.getElementById('triviaOptions').innerHTML = q.options.map((opt,i)=>{
+    let cls = 'trivia-option';
+    if(triviaAnswered){
+      if(i===q.correct) cls+=' correct';
+      else if(i===myAnswer) cls+=' wrong';
+    }
+    return `<button class="${cls}" onclick="submitTriviaAnswer(${i},this)" ${triviaAnswered?'disabled':''}>
+      <span class="option-letter">${letters[i]}</span>${opt}
+    </button>`;
+  }).join('');
+
+  if(triviaAnswered && myAnswer!==undefined){
+    const correct = myAnswer===q.correct;
+    fb.style.display='block';
+    fb.style.background=correct?'rgba(34,170,102,0.2)':'rgba(204,34,0,0.15)';
+    fb.style.border=correct?'1px solid var(--immune)':'1px solid var(--elim)';
+    fb.style.color=correct?'var(--immune)':'#FF6655';
+    fb.textContent=correct?'✓ Correct!':'❌ Wrong!';
+  }
+}
+
+function renderTriviaHostPanel(tc){
+  const panel = document.getElementById('hostTriviaPanel');
+  if(!tc){ panel.style.display='none'; return; }
+  panel.style.display='block';
+
+  const q = tc.questions[tc.currentQ];
+  const answered = Object.keys(tc.playerAnswers).filter(n=>tc.playerAnswers[n][tc.currentQ]!==undefined).length;
+  const alive = gameState.players.filter(p=>!p.eliminated).length;
+
+  document.getElementById('triviaQDisplay').innerHTML=`
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Q${tc.currentQ+1} of ${tc.questions.length} · ${answered}/${alive} answered</div>
+    <div style="font-weight:700;font-size:13px;line-height:1.4;margin-bottom:8px">${q.q}</div>
+    ${q.options.map((o,i)=>`<div style="font-size:12px;padding:4px 0;color:${i===q.correct?'var(--immune)':'var(--muted)'}">
+      ${i===q.correct?'✓':' '} ${String.fromCharCode(65+i)}. ${o}
+    </div>`).join('')}`;
+
+  // Score tally
+  const scores = tc.scores||{};
+  const sorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('triviaTallyHost').innerHTML=sorted.length?`
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Live Scores</div>
+    ${sorted.map(([name,pts])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px">
+      <span style="font-weight:700">${name}</span>
+      <span style="color:var(--fire2);font-weight:700">${pts} pts</span>
+    </div>`).join('')}`:'';
 }
 
 // ── MERGE TRIBES ──
