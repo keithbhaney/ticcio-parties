@@ -261,6 +261,20 @@ select.input{cursor:pointer}
       <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Survivors</div><div class="survivor-count" id="survivorCount">—</div></div>
       <div style="text-align:right"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Voted Out</div><div class="survivor-count" id="elimCount" style="color:var(--elim)">—</div></div>
     </div>
+    <div id="youAreBanner" style="display:none;background:rgba(255,107,53,0.12);border:1px solid rgba(255,107,53,0.4);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+      <div id="youAreAvatar" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Cinzel',serif;font-size:14px;flex-shrink:0"></div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">You are</div>
+        <div id="youAreName" style="font-weight:700;font-size:15px;color:var(--fire2)"></div>
+      </div>
+      <div id="youAreTeam" style="margin-left:auto;font-size:11px;font-weight:700"></div>
+    </div>
+    <div id="hostTeamPanel" style="display:none;margin-bottom:12px">
+      <div class="host-panel">
+        <h4>👥 Reassign Player Teams</h4>
+        <div id="teamReassignList"></div>
+      </div>
+    </div>
     <div id="phaseBannerBracket" class="phase-banner phase-active">✅ Game On</div>
     <div id="challengeInfoBracket"></div>
     <div id="tribeGrid"></div>
@@ -284,6 +298,9 @@ select.input{cursor:pointer}
         <div class="flex-row">
           <button class="btn btn-danger btn-sm" onclick="hostRevealElim()">Reveal Elimination</button>
           <button class="btn btn-ghost btn-sm" onclick="hostNextRound()">Next Round →</button>
+        </div>
+        <div style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" onclick="hostEndGame()" style="width:100%;color:var(--elim);border:1px solid rgba(204,34,0,0.3)">🏁 End Game Manually</button>
         </div>
       </div>
       <div id="liveVoteTally" class="game-card" style="display:none">
@@ -783,7 +800,7 @@ function openLightbox(src,hint){
 function closeLightbox(){ document.getElementById('lightbox').classList.remove('active'); }
 
 // ── RENDER ──
-function renderAll(){ renderHeader(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHostPanels(); }
+function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHostPanels(); }
 
 function renderHeader(){
   document.getElementById('gameNameDisplay').textContent=gameState.gameName;
@@ -960,6 +977,24 @@ function startPolling(){
       if(myName&&gameState.votes[myName]) myVote=gameState.votes[myName];
       // Reset pic submitted if round changed or challenge cleared
       if(!gameState.pictureChallenge) { picSubmitted=false; picAnswers=['','','','','']; if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;} }
+      // Show elim modal on player screens when host reveals
+      if(!isHost && gameState.revealed && gameState.phase==='reveal'){
+        const lastElim=gameState.elimHistory[gameState.elimHistory.length-1];
+        if(lastElim && lastElim.round===gameState.round){
+          document.getElementById('elimName').textContent=lastElim.name;
+          document.getElementById('elimVoteCount').textContent=lastElim.votes+' vote'+(lastElim.votes!==1?'s':'');
+          document.getElementById('elimTeam').textContent=lastElim.team?'Team: '+lastElim.team:'';
+          if(!document.getElementById('elimModal').classList.contains('active')){
+            document.getElementById('elimModal').classList.add('active');
+          }
+        }
+      }
+      // Auto-switch tabs for players based on phase
+      if(!isHost){
+        if(gameState.phase==='challenge') showTab('games');
+        else if(gameState.phase==='voting') showTab('voting');
+        else if(gameState.phase==='reveal') showTab('voting');
+      }
       renderAll();
     }
   },POLL_INTERVAL);
@@ -974,6 +1009,123 @@ function toast(msg,isError=false){
   t.style.color='var(--text)';
   t.style.display='block';
   setTimeout(()=>t.style.display='none',2800);
+}
+
+// ── HOST END GAME ──
+async function hostEndGame(){
+  if(!confirm('End the game now and declare a winner?')) return;
+  gameState.phase='done';
+  await saveState();
+  renderAll();
+  toast('Game over! Thanks for playing 🏆');
+}
+
+// ── HOST TEAM REASSIGN ──
+async function hostReassignTeam(playerName, newTeam){
+  const p=gameState.players.find(x=>x.name===playerName);
+  if(!p) return;
+  p.team=newTeam;
+  await saveState();
+  renderAll();
+  toast(playerName+' moved to '+newTeam);
+}
+
+// ── RENDER YOU ARE BANNER ──
+function renderYouAreBanner(){
+  const banner=document.getElementById('youAreBanner');
+  const nameEl=document.getElementById('youAreName');
+  const avatarEl=document.getElementById('youAreAvatar');
+  const teamEl=document.getElementById('youAreTeam');
+  if(!myName||myName==='__host__'||isHost){ banner.style.display='none'; return; }
+  const me=gameState.players.find(p=>p.name===myName);
+  if(!me){ banner.style.display='none'; return; }
+  banner.style.display='flex';
+  nameEl.textContent=myName;
+  const pi=gameState.players.indexOf(me);
+  const ti=teamIndexOf(me.team);
+  const bg=ti>=0?teamColor(ti).bg:avatarBg(pi);
+  avatarEl.style.background=bg;
+  avatarEl.style.color='#0A0F1A';
+  avatarEl.textContent=initials(myName);
+  if(me.team) teamEl.innerHTML=`<span style="font-size:11px;padding:3px 10px;border-radius:20px;background:${bg}33;color:${bg};font-weight:700">${me.team}</span>`;
+  else teamEl.textContent='';
+}
+
+// ── RENDER TEAM REASSIGN (HOST) ──
+function renderTeamReassign(){
+  const panel=document.getElementById('hostTeamPanel');
+  const list=document.getElementById('teamReassignList');
+  if(!isHost||!gameState.teams.length){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  const alive=gameState.players.filter(p=>!p.eliminated);
+  list.innerHTML=alive.map(p=>{
+    const opts=gameState.teams.map(t=>`<option value="${t}" ${p.team===t?'selected':''}>${t}</option>`).join('');
+    const ti=teamIndexOf(p.team);
+    const bg=ti>=0?teamColor(ti).bg:'#888';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div style="width:10px;height:10px;border-radius:50%;background:${bg};flex-shrink:0"></div>
+      <span style="flex:1;font-size:13px;font-weight:600">${p.name}</span>
+      <select class="player-team-select" onchange="hostReassignTeam('${p.name}',this.value)">${opts}</select>
+    </div>`;
+  }).join('');
+}
+
+// ── HOST END GAME ──
+async function hostEndGame(){
+  if(!confirm('End the game now and declare a winner?')) return;
+  gameState.phase='done';
+  await saveState();
+  renderAll();
+  toast('Game over! Thanks for playing 🏆');
+}
+
+// ── HOST TEAM REASSIGN ──
+async function hostReassignTeam(playerName, newTeam){
+  const p=gameState.players.find(x=>x.name===playerName);
+  if(!p) return;
+  p.team=newTeam;
+  await saveState();
+  renderAll();
+  toast(playerName+' moved to '+newTeam);
+}
+
+// ── YOU ARE BANNER ──
+function renderYouAreBanner(){
+  const banner=document.getElementById('youAreBanner');
+  if(!banner) return;
+  if(!myName||myName==='__host__'||isHost){ banner.style.display='none'; return; }
+  const me=gameState.players.find(p=>p.name===myName);
+  if(!me){ banner.style.display='none'; return; }
+  banner.style.display='flex';
+  document.getElementById('youAreName').textContent=myName;
+  const pi=gameState.players.indexOf(me);
+  const ti=teamIndexOf(me.team);
+  const bg=ti>=0?teamColor(ti).bg:avatarBg(pi);
+  const av=document.getElementById('youAreAvatar');
+  av.style.background=bg; av.style.color='#0A0F1A'; av.textContent=initials(myName);
+  const teamEl=document.getElementById('youAreTeam');
+  if(me.team) teamEl.innerHTML=`<span style="font-size:11px;padding:3px 10px;border-radius:20px;background:${bg}33;color:${bg};font-weight:700">${me.team}</span>`;
+  else teamEl.textContent='';
+}
+
+// ── TEAM REASSIGN PANEL (HOST) ──
+function renderTeamReassign(){
+  const panel=document.getElementById('hostTeamPanel');
+  const list=document.getElementById('teamReassignList');
+  if(!panel||!list) return;
+  if(!isHost||!gameState.teams.length){ panel.style.display='none'; return; }
+  panel.style.display='block';
+  const alive=gameState.players.filter(p=>!p.eliminated);
+  list.innerHTML=alive.map(p=>{
+    const opts=gameState.teams.map(t=>`<option value="${t}" ${p.team===t?'selected':''}>${t}</option>`).join('');
+    const ti=teamIndexOf(p.team);
+    const bg=ti>=0?teamColor(ti).bg:'#888';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <div style="width:10px;height:10px;border-radius:50%;background:${bg};flex-shrink:0"></div>
+      <span style="flex:1;font-size:13px;font-weight:600">${p.name}</span>
+      <select class="player-team-select" onchange="hostReassignTeam('${p.name}',this.value)">${opts}</select>
+    </div>`;
+  }).join('');
 }
 
 (async()=>{ await loadState(); showScreen('joinScreen'); })();
