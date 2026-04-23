@@ -123,6 +123,15 @@ select.input{cursor:pointer}
 .elim-reveal{text-align:center;padding:24px 16px}
 .elim-name{font-family:'Cinzel',serif;font-size:28px;font-weight:900;color:var(--elim);margin:12px 0}
 
+/* ── NAME THAT TUNE ── */
+.ntt-player{background:#000;border-radius:14px;overflow:hidden;margin-bottom:14px;position:relative;aspect-ratio:16/9;display:none}
+.ntt-player iframe{width:100%;height:100%;border:none}
+.ntt-overlay{position:absolute;inset:0;background:rgba(10,15,26,0.92);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+.ntt-playing-indicator{display:flex;align-items:center;gap:8px;color:var(--fire2);font-weight:700;font-size:14px}
+.ntt-bar{width:4px;border-radius:2px;background:var(--fire2);animation:nttBounce 0.6s ease-in-out infinite alternate}
+@keyframes nttBounce{from{height:8px}to{height:24px}}
+.ntt-answer-form{background:var(--card);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.08)}
+
 /* ── SORT IT CHALLENGE ── */
 .sort-item{background:var(--card);border:2px solid rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:grab;display:flex;align-items:center;gap:12px;font-weight:700;font-size:14px;transition:all .2s;user-select:none;touch-action:none}
 .sort-item:active{cursor:grabbing}
@@ -398,6 +407,23 @@ select.input{cursor:pointer}
 
         <div class="divider"></div>
 
+        <!-- Name That Tune launcher -->
+        <div id="nttLauncher">
+          <label>🎵 Name That Tune</label>
+          <input class="input input-sm" id="nttYoutubeUrl" placeholder="Paste YouTube URL..." style="margin-bottom:6px">
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div style="flex:1"><label>Start at (seconds)</label>
+              <input class="input input-sm" id="nttStartSeconds" type="number" value="0" min="0" style="margin:0" placeholder="e.g. 30">
+            </div>
+            <div style="flex:1"><label>Round label</label>
+              <input class="input input-sm" id="nttRoundLabel" placeholder="e.g. Round 1" style="margin:0">
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="hostStartNTT()" style="width:100%;margin-bottom:0">🎵 Launch Name That Tune</button>
+        </div>
+
+        <div class="divider"></div>
+
         <!-- Sort It launcher -->
         <div id="sortLauncher">
           <label>🔢 Sort It</label>
@@ -447,6 +473,23 @@ select.input{cursor:pointer}
       </div>
     </div>
 
+    <!-- Host NTT panel -->
+    <div id="hostNttPanel" style="display:none">
+      <div class="host-panel">
+        <h4>🎵 Name That Tune — Host Controls</h4>
+        <div id="nttHostPlayer" class="ntt-player" style="display:block">
+          <iframe id="nttHostIframe" src="" allowfullscreen allow="autoplay"></iframe>
+        </div>
+        <div class="flex-row" style="margin-bottom:10px">
+          <button class="btn btn-fire btn-sm" onclick="hostNttPlay()">▶ Play</button>
+          <button class="btn btn-danger btn-sm" onclick="hostNttStop()">⏹ Stop</button>
+          <button class="btn btn-success btn-sm" onclick="hostNttEnd()">End + Immunity</button>
+        </div>
+        <div id="nttSubmissionCount" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+        <div id="nttScoringList"></div>
+      </div>
+    </div>
+
     <!-- Host Sort It panel -->
     <div id="hostSortPanel" style="display:none">
       <div class="host-panel">
@@ -489,6 +532,37 @@ select.input{cursor:pointer}
       </div>
     </div>
 
+    <!-- Player NTT UI -->
+    <div id="playerNttChallenge" style="display:none">
+      <div style="font-family:'Cinzel',serif;font-size:14px;color:var(--fire2);text-align:center;margin-bottom:12px;letter-spacing:.5px" id="nttRoundLabelDisplay">Name That Tune</div>
+
+      <!-- Audio player area -->
+      <div id="nttPlayerArea" style="margin-bottom:14px">
+        <div id="nttStatusDisplay" style="text-align:center;padding:24px;background:var(--card2);border-radius:14px;margin-bottom:10px">
+          <div style="font-size:36px;margin-bottom:8px" id="nttStatusIcon">🎵</div>
+          <div style="font-weight:700;color:var(--muted)" id="nttStatusText">Waiting for host to play...</div>
+        </div>
+        <!-- Hidden iframe that actually plays audio -->
+        <iframe id="nttPlayerIframe" src="" style="width:1px;height:1px;opacity:0;position:absolute" allow="autoplay"></iframe>
+      </div>
+
+      <!-- Answer form -->
+      <div id="nttAnswerForm" class="ntt-answer-form" style="display:none">
+        <div style="font-weight:700;margin-bottom:10px;font-size:14px">What song is this?</div>
+        <label>Artist</label>
+        <input class="input" id="nttArtistInput" placeholder="Artist name..." style="margin-bottom:8px">
+        <label>Song Title</label>
+        <input class="input" id="nttSongInput" placeholder="Song title...">
+        <button class="btn btn-fire" onclick="submitNttAnswer()" id="nttSubmitBtn">Submit Answer 🎵</button>
+      </div>
+
+      <div id="nttAnsweredMsg" style="display:none;text-align:center;padding:20px">
+        <div style="font-size:28px;margin-bottom:8px">✅</div>
+        <div style="font-weight:700;color:var(--immune)">Answer Submitted!</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:4px">Waiting for host to score...</div>
+      </div>
+    </div>
+
     <!-- Player Sort It UI -->
     <div id="playerSortChallenge" style="display:none">
       <div id="sortPromptDisplay" style="font-family:'Cinzel',serif;font-size:13px;color:var(--fire2);text-align:center;margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase"></div>
@@ -518,7 +592,8 @@ select.input{cursor:pointer}
 
     <!-- Scores after challenge ends -->
     <div id="challengeScores" style="display:none">
-      <div class="section-title" style="margin-bottom:10px">Challenge Results</div>
+      <div class="section-title" style="margin-bottom:4px" id="challengeResultsTitle">Challenge Results</div>
+    <div class="section-sub" id="challengeResultsSub">Final scores — immunity awarded to top scorer</div>
       <div id="scoresDisplay"></div>
     </div>
 
@@ -796,6 +871,7 @@ async function hostOverride(playerName,qIndex,correct){
 function renderHostScoreTable(){
   const tc=gameState.triviaChallenge;
   const sc=gameState.sortChallenge;
+  const nc=gameState.nttChallenge;
   const pc=gameState.pictureChallenge;
   if(!pc) return;
   const scores=pc.scores||{};
@@ -956,27 +1032,62 @@ async function submitPicAnswers(){
   renderGamesTab();
 }
 
-function renderChallengeScores(pc){
+function renderChallengeScores(challenge){
   const el=document.getElementById('challengeScores');
   const disp=document.getElementById('scoresDisplay');
-  if(!pc?.scores||!Object.keys(pc.scores).length){ el.style.display='none'; return; }
+  if(!challenge?.scores||!Object.keys(challenge.scores).length){ el.style.display='none'; return; }
   el.style.display='block';
-  const sorted=Object.entries(pc.scores).sort((a,b)=>b[1]-a[1]);
+  const sorted=Object.entries(challenge.scores).sort((a,b)=>b[1]-a[1]);
   const maxScore=sorted[0]?.[1]||0;
-  disp.innerHTML=sorted.map(([name,score])=>{
-    const isWinner=score===maxScore;
-    const stars='★'.repeat(score)+'☆'.repeat(5-score);
-    return `<div class="score-row ${isWinner?'winner':''}">
-      <div>
-        <span style="font-weight:700">${name}</span>
-        ${isWinner?'<span class="immune-badge" style="margin-left:6px">🛡️ Immune</span>':''}
-      </div>
-      <div>
-        <span class="score-stars">${stars}</span>
-        <span style="font-weight:700;margin-left:6px;color:var(--fire2)">${score}/5</span>
-      </div>
+  const maxPossible=challenge.questions?challenge.questions.length:
+                    challenge.timePerQ?15:3; // trivia=15pts, sort=3pts, ntt=2pts
+
+  // Add team totals if teams exist
+  let teamScoresHtml='';
+  if(gameState.teams.length>0){
+    const ts={};
+    gameState.teams.forEach(t=>ts[t]=0);
+    sorted.forEach(([name,score])=>{
+      const p=gameState.players.find(x=>x.name===name);
+      if(p?.team&&ts[p.team]!==undefined) ts[p.team]+=score;
+    });
+    const sortedTeams=Object.entries(ts).sort((a,b)=>b[1]-a[1]);
+    const maxTeam=sortedTeams[0]?.[1]||0;
+    teamScoresHtml=`<div style="margin-bottom:14px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Team Scores</div>
+      ${sortedTeams.map(([team,pts])=>{
+        const ti=teamIndexOf(team);
+        const bg=ti>=0?teamColor(ti).bg:'#888';
+        const isTop=pts===maxTeam;
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:${isTop?'rgba(34,170,102,0.12)':'var(--card2)'};border-radius:8px;margin-bottom:6px;border:1px solid ${isTop?'rgba(34,170,102,0.3)':'transparent'}">
+          <div style="width:12px;height:12px;border-radius:50%;background:${bg};flex-shrink:0"></div>
+          <span style="flex:1;font-weight:700;font-size:13px">${team}</span>
+          ${isTop?'<span class="immune-badge">🛡️ Immune</span>':''}
+          <span style="color:var(--fire2);font-weight:700">${pts} pts</span>
+        </div>`;
+      }).join('')}
     </div>`;
-  }).join('');
+  }
+
+  disp.innerHTML=teamScoresHtml+`
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Individual Scores</div>
+    ${sorted.map(([name,score])=>{
+      const isWinner=score===maxScore;
+      const p=gameState.players.find(x=>x.name===name);
+      const ti=p?.team?teamIndexOf(p.team):-1;
+      const bg=ti>=0?teamColor(ti).bg:avatarBg(gameState.players.indexOf(p));
+      return `<div class="score-row ${isWinner?'winner':''}">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:50%;background:${bg};color:#0A0F1A;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;font-family:'Cinzel',serif;flex-shrink:0">${initials(name)}</div>
+          <div>
+            <div style="font-weight:700">${name}</div>
+            ${p?.team?`<div style="font-size:10px;color:var(--muted)">${p.team}</div>`:''}
+          </div>
+          ${isWinner?'<span class="immune-badge">🛡️ Immune</span>':''}
+        </div>
+        <span style="font-weight:700;color:var(--fire2);font-size:16px">${score} pts</span>
+      </div>`;
+    }).join('')}`;
 }
 
 // ── LIGHTBOX ──
@@ -1103,6 +1214,7 @@ function renderVotingTab(){
 function renderGamesTab(){
   const tc=gameState.triviaChallenge;
   const sc=gameState.sortChallenge;
+  const nc=gameState.nttChallenge;
   const pc=gameState.pictureChallenge;
   const acd=document.getElementById('activeChallengeDisplay');
   const ppc=document.getElementById('playerPicChallenge');
@@ -1119,34 +1231,52 @@ function renderGamesTab(){
   const playerTriPanel=document.getElementById('playerTriviaChallenge');
   const hostSortPanel=document.getElementById('hostSortPanel');
   const playerSortPanel=document.getElementById('playerSortChallenge');
+  const hostNttPanel=document.getElementById('hostNttPanel');
+  const playerNttPanel=document.getElementById('playerNttChallenge');
   if(hostTriPanel) hostTriPanel.style.display='none';
   if(playerTriPanel) playerTriPanel.style.display='none';
   if(hostSortPanel) hostSortPanel.style.display='none';
   if(playerSortPanel) playerSortPanel.style.display='none';
+  if(hostNttPanel) hostNttPanel.style.display='none';
+  if(playerNttPanel) playerNttPanel.style.display='none';
+
+  if(nc&&gameState.phase==='challenge'){
+    csg.style.display='none';
+    if(isHost){ renderNttHostPanel(nc); }
+    else { renderNttForPlayer(nc); }
+    return;
+  } else if(nc&&nc.ended){
+    csg.style.display='none';
+    renderChallengeScores(nc);
+    return;
+  }
 
   if(sc&&gameState.phase==='challenge'){
     csg.style.display='none';
     if(isHost){ renderSortHostPanel(sc); }
     else { renderSortForPlayer(sc); }
     return;
-  } else if(sc&&sc.ended&&!isHost){
+  } else if(sc&&sc.ended){
     csg.style.display='none';
     renderChallengeScores(sc);
     return;
   }
 
-  if(tc&&gameState.phase==='challenge'&&!tc.ended){
+  if(tc&&!tc.ended&&gameState.phase==='challenge'){
     csg.style.display='none';
     if(isHost){ renderTriviaHostPanel(tc); }
     else { renderTriviaForPlayer(tc); }
     return;
-  } else if(tc&&tc.ended&&!isHost){
+  } else if(tc&&tc.ended){
     csg.style.display='none';
     renderChallengeScores(tc);
     return;
   }
 
-  if(pc&&gameState.phase==='challenge'){
+  if(pc&&pc.ended){
+    csg.style.display='none';
+    renderChallengeScores(pc);
+  } else if(pc&&gameState.phase==='challenge'){
     csg.style.display='none';
     if(isHost){
       hps.style.display='block';
@@ -1154,9 +1284,6 @@ function renderGamesTab(){
     } else {
       renderPicChallenge(pc);
     }
-  } else if(pc&&pc.ended&&!isHost){
-    csg.style.display='none';
-    renderChallengeScores(pc);
   } else if(gameState.currentChallenge&&gameState.phase==='challenge'&&!pc){
     csg.style.display='none';
     acd.style.display='block';
@@ -1212,6 +1339,7 @@ function startPolling(){
       if(!gameState.pictureChallenge) { picSubmitted=false; picAnswers=['','','','','']; if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;} }
       if(!gameState.triviaChallenge) { triviaAnswered=false; if(triviaTimerInterval){clearInterval(triviaTimerInterval);triviaTimerInterval=null;} }
       if(!gameState.sortChallenge) { sortSubmitted=false; sortOrder=[]; if(sortTimerInterval){clearInterval(sortTimerInterval);sortTimerInterval=null;} }
+      if(!gameState.nttChallenge) { nttAnswered=false; lastNttPlaying=false; }
       // Show elim modal on player screens when host reveals
       if(!isHost && gameState.revealed && gameState.phase==='reveal'){
         const lastElim=gameState.elimHistory[gameState.elimHistory.length-1];
@@ -1246,6 +1374,154 @@ function toast(msg,isError=false){
   setTimeout(()=>t.style.display='none',2800);
 }
 
+
+
+// ── NAME THAT TUNE JS ──
+let nttAnswered = false;
+let lastNttPlaying = false;
+
+async function hostStartNTT(){
+  const url = document.getElementById('nttYoutubeUrl').value.trim();
+  const startSeconds = parseInt(document.getElementById('nttStartSeconds').value)||0;
+  const roundLabel = document.getElementById('nttRoundLabel').value.trim()||'Name That Tune';
+  const immunityType = gameState.defaultImmunityType||'individual';
+  if(!url){ toast('Paste a YouTube URL first',true); return; }
+  const res = await api('/ntt/start',{youtubeUrl:url, startSeconds, roundLabel, immunityType});
+  if(res.error){ toast(res.error,true); return; }
+  await loadState(); renderAll(); toast('Name That Tune launched! 🎵');
+}
+
+async function hostNttPlay(){
+  await api('/ntt/play',{});
+  await loadState(); renderAll();
+}
+
+async function hostNttStop(){
+  await api('/ntt/stop',{});
+  await loadState(); renderAll();
+}
+
+async function hostNttEnd(){
+  const res = await api('/ntt/end',{});
+  await loadState(); renderAll();
+  if(res.immuneNames?.length) toast('Immunity: '+res.immuneNames.join(', ')+' 🛡️');
+}
+
+async function hostNttScore(playerName, points){
+  await api('/ntt/score',{playerName,points});
+  await loadState(); renderNttHostPanel(gameState.nttChallenge);
+}
+
+async function submitNttAnswer(){
+  if(nttAnswered) return;
+  const artist = document.getElementById('nttArtistInput').value.trim();
+  const song = document.getElementById('nttSongInput').value.trim();
+  if(!artist&&!song){ toast('Enter at least one answer',true); return; }
+  nttAnswered = true;
+  await fetch(API+'/ntt/answer',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({playerName:myName, artist, song})});
+  document.getElementById('nttAnswerForm').style.display='none';
+  document.getElementById('nttAnsweredMsg').style.display='block';
+}
+
+function buildYoutubeEmbedUrl(videoId, startSeconds){
+  return `https://www.youtube.com/embed/${videoId}?start=${startSeconds}&autoplay=1&enablejsapi=1&rel=0&modestbranding=1`;
+}
+
+function renderNttForPlayer(ntt){
+  const wrap = document.getElementById('playerNttChallenge');
+  if(!ntt){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+
+  document.getElementById('nttRoundLabelDisplay').textContent = ntt.roundLabel||'Name That Tune';
+
+  const statusIcon = document.getElementById('nttStatusIcon');
+  const statusText = document.getElementById('nttStatusText');
+  const iframe = document.getElementById('nttPlayerIframe');
+  const answerForm = document.getElementById('nttAnswerForm');
+  const answeredMsg = document.getElementById('nttAnsweredMsg');
+
+  const alreadyAnswered = !!(ntt.playerAnswers&&ntt.playerAnswers[myName]);
+  if(alreadyAnswered) nttAnswered = true;
+
+  if(ntt.playing && !lastNttPlaying){
+    // Host just hit play — load iframe
+    iframe.src = buildYoutubeEmbedUrl(ntt.videoId, ntt.startSeconds||0);
+    lastNttPlaying = true;
+  } else if(!ntt.playing && lastNttPlaying){
+    // Host stopped
+    iframe.src = '';
+    lastNttPlaying = false;
+  }
+
+  if(ntt.playing){
+    statusIcon.textContent = '🎵';
+    statusText.textContent = 'Listen carefully...';
+    statusText.style.color = 'var(--fire2)';
+    // Add bouncing bars animation
+    document.getElementById('nttStatusDisplay').innerHTML = `
+      <div style="display:flex;align-items:flex-end;justify-content:center;gap:5px;height:40px;margin-bottom:10px">
+        ${[1,2,3,4,5].map((v,i)=>`<div class="ntt-bar" style="animation-delay:${i*0.1}s"></div>`).join('')}
+      </div>
+      <div style="font-weight:700;color:var(--fire2);font-size:14px">🎵 Playing Now — Listen!</div>`;
+  } else if(ntt.stopped){
+    document.getElementById('nttStatusDisplay').innerHTML = `
+      <div style="font-size:36px;margin-bottom:8px">⏹️</div>
+      <div style="font-weight:700;color:var(--text)">Music stopped — submit your answer!</div>`;
+    if(!nttAnswered){
+      answerForm.style.display='block';
+      answeredMsg.style.display='none';
+    }
+  } else {
+    document.getElementById('nttStatusDisplay').innerHTML = `
+      <div style="font-size:36px;margin-bottom:8px">🎵</div>
+      <div style="font-weight:700;color:var(--muted)">Waiting for host to play...</div>`;
+  }
+
+  if(nttAnswered){
+    answerForm.style.display='none';
+    answeredMsg.style.display='block';
+  }
+}
+
+function renderNttHostPanel(ntt){
+  const panel = document.getElementById('hostNttPanel');
+  if(!ntt){ panel.style.display='none'; return; }
+  panel.style.display='block';
+
+  // Load iframe if not yet loaded
+  const iframe = document.getElementById('nttHostIframe');
+  if(!iframe.src||iframe.src==='about:blank'||iframe.src===''){
+    iframe.src = `https://www.youtube.com/embed/${ntt.videoId}?start=${ntt.startSeconds||0}&rel=0&modestbranding=1`;
+  }
+
+  const submitted = Object.keys(ntt.playerAnswers||{}).length;
+  const alive = gameState.players.filter(p=>!p.eliminated).length;
+  document.getElementById('nttSubmissionCount').textContent = `${submitted}/${alive} players submitted`;
+
+  // Scoring list
+  const players = gameState.players.filter(p=>!p.eliminated);
+  document.getElementById('nttScoringList').innerHTML = players.map(p=>{
+    const ans = ntt.playerAnswers?.[p.name];
+    const score = ntt.scores?.[p.name]??null;
+    if(!ans) return `<div style="padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between">
+      <span style="font-weight:700">${p.name}</span><span>Not submitted yet</span></div>`;
+    return `<div style="padding:10px 12px;background:var(--card2);border-radius:10px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-weight:700;font-size:13px">${p.name}</span>
+        <span style="color:var(--fire2);font-weight:700">${score!==null?score+' pts':'unscored'}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+        Artist: <span style="color:var(--text)">${ans.artist||'—'}</span> · Song: <span style="color:var(--text)">${ans.song||'—'}</span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="hostNttScore('${p.name}',0)" style="font-size:11px;flex:1;${score===0?'background:rgba(204,34,0,0.3);color:var(--elim)':''}">❌ Wrong</button>
+        <button class="btn btn-ghost btn-sm" onclick="hostNttScore('${p.name}',1)" style="font-size:11px;flex:1;${score===1?'background:rgba(255,107,53,0.3);color:var(--fire2)':''}">🎵 Song only</button>
+        <button class="btn btn-ghost btn-sm" onclick="hostNttScore('${p.name}',2)" style="font-size:11px;flex:1;${score===2?'background:rgba(34,170,102,0.3);color:var(--immune)':''}">✅ Both</button>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // ── SORT IT JS ──
 let sortTimerInterval = null;
