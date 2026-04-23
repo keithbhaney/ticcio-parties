@@ -273,6 +273,7 @@ select.input{cursor:pointer}
     <div class="tab active" onclick="showTab('bracket')" id="tab-bracket"><span class="tab-icon">🏝️</span>Tribe</div>
     <div class="tab" onclick="showTab('voting')" id="tab-voting"><span class="tab-icon">🗳️</span>Vote</div>
     <div class="tab" onclick="showTab('games')" id="tab-games"><span class="tab-icon">⚡</span>Games</div>
+    <div class="tab" onclick="showTab('history')" id="tab-history"><span class="tab-icon">📜</span>History</div>
   </div>
 
   <!-- TRIBE TAB -->
@@ -537,6 +538,51 @@ select.input{cursor:pointer}
         <div class="contest-header"><div class="contest-icon">🤔</div><div><div style="font-weight:700;color:var(--text)">Have You Ever?</div><span class="coming-badge">Coming Soon</span></div></div>
         <div class="contest-body"><p style="font-size:13px;color:var(--muted)">Vote on who in the tribe has done something. Most votes wins immunity.</p></div>
       </div>
+    </div>
+  </div>
+  <!-- HISTORY TAB -->
+  <div class="section" id="sect-history">
+    <div class="section-title">Game History</div>
+    <div class="section-sub">Every elimination so far this game</div>
+    <div id="historyContent"></div>
+
+    <!-- Host: mid-game reset -->
+    <div id="hostResetPanel" style="display:none;margin-top:24px">
+      <div class="divider"></div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Host Options</div>
+      <button class="btn btn-ghost btn-sm" onclick="hostShowGameOver()" style="width:100%;margin-bottom:8px;color:var(--fire2)">🏆 View Game Over Screen</button>
+      <button class="btn btn-ghost btn-sm" onclick="hostNewGame()" style="width:100%;color:var(--elim);border:1px solid rgba(204,34,0,0.3)">🔄 Reset &amp; Start New Game</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div class="modal-overlay" id="gameOverScreen">
+  <div class="modal-sheet" style="border-radius:20px;max-height:92vh">
+    <div style="text-align:center;padding:10px 0 20px">
+      <div style="font-size:56px;margin-bottom:8px">🏆</div>
+      <div style="font-family:'Cinzel',serif;font-size:28px;font-weight:900;background:linear-gradient(90deg,var(--fire),var(--fire2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px">Game Over!</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:20px" id="gameOverSubtitle">Thanks for playing</div>
+
+      <!-- Winner -->
+      <div id="winnerDisplay" style="background:rgba(255,179,71,0.12);border:1px solid rgba(255,179,71,0.4);border-radius:14px;padding:16px;margin-bottom:16px;display:none">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🥇 Sole Survivor</div>
+        <div id="winnerName" style="font-family:'Cinzel',serif;font-size:24px;font-weight:900;color:var(--fire2)"></div>
+        <div id="winnerTeam" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
+      </div>
+
+      <!-- Elim History -->
+      <div style="text-align:left;margin-bottom:20px">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Voted Out — In Order</div>
+        <div id="elimHistoryList"></div>
+      </div>
+
+      <!-- Host only: new game button -->
+      <div id="newGameBtns" style="display:none">
+        <button class="btn btn-fire" onclick="hostNewGame()" style="margin-bottom:10px">🔥 Start New Game</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('gameOverScreen').classList.remove('active')">View Tribe</button>
+      </div>
+      <div id="playerGameOverMsg" style="display:none;font-size:13px;color:var(--muted)">Ask the host to start a new game!</div>
     </div>
   </div>
 </div>
@@ -942,7 +988,7 @@ function openLightbox(src,hint){
 function closeLightbox(){ document.getElementById('lightbox').classList.remove('active'); }
 
 // ── RENDER ──
-function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHostPanels(); if(isHost) updateRevealBtn(); }
+function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHistoryTab(); renderHostPanels(); if(isHost) updateRevealBtn(); if(gameState.phase==='done') renderGameOver(); }
 
 function renderHeader(){
   document.getElementById('gameNameDisplay').textContent=gameState.gameName;
@@ -1563,6 +1609,110 @@ function renderTriviaHostPanel(tc){
     </div>`).join('')}`:'';
 }
 
+// ── HISTORY TAB ──
+function renderHistoryTab(){
+  const hist = gameState.elimHistory||[];
+  const el = document.getElementById('historyContent');
+  const hostPanel = document.getElementById('hostResetPanel');
+  if(hostPanel) hostPanel.style.display = isHost?'block':'none';
+  if(!el) return;
+
+  if(!hist.length){
+    el.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:10px">📜</div><div style="font-weight:700">No eliminations yet</div><div style="font-size:13px;margin-top:6px">History will appear here after each tribal council</div></div>';
+    return;
+  }
+
+  // Group by round
+  const byRound={};
+  hist.forEach(e=>{ if(!byRound[e.round]) byRound[e.round]=[]; byRound[e.round].push(e); });
+
+  el.innerHTML=Object.entries(byRound).reverse().map(([round,elims])=>`
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Round ${round}</div>
+      ${elims.map(e=>{
+        const pi=gameState.players.findIndex(p=>p.name===e.name);
+        const ti=teamIndexOf(e.team);
+        const bg=ti>=0?teamColor(ti).bg:avatarBg(pi>=0?pi:0);
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--card2);border-radius:10px;margin-bottom:6px;border-left:3px solid ${bg}">
+          <div style="width:36px;height:36px;border-radius:50%;background:${bg};color:#0A0F1A;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Cinzel',serif;font-size:13px;flex-shrink:0">${initials(e.name)}</div>
+          <div style="flex:1">
+            <div style="font-weight:700">${e.name}</div>
+            <div style="font-size:11px;color:var(--muted)">${e.team||''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:12px;color:var(--elim);font-weight:700">${e.votes} vote${e.votes!==1?'s':''}</div>
+            ${e.revealNum===2?'<div style="font-size:10px;color:var(--muted)">2nd elim</div>':''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function hostShowGameOver(){
+  renderGameOver();
+  // Force show even if already shown
+  document.getElementById('gameOverScreen').classList.add('active');
+}
+
+// ── NEW GAME / RESET ──
+async function hostNewGame(){
+  if(!confirm('Start a completely new game? This will clear all current data.')) return;
+  await api('/reset',{});
+  // Reset all local state
+  isHost=false; myName=''; myVote=null;
+  lastUpdatedAt=0; picSubmitted=false; picAnswers=['','','','',''];
+  triviaAnswered=false; sortSubmitted=false; sortOrder=[];
+  if(pollTimer) clearInterval(pollTimer);
+  if(picTimerInterval) clearInterval(picTimerInterval);
+  if(triviaTimerInterval) clearInterval(triviaTimerInterval);
+  if(sortTimerInterval) clearInterval(sortTimerInterval);
+  pollTimer=null; picTimerInterval=null; triviaTimerInterval=null; sortTimerInterval=null;
+  gameState=defaultState();
+  document.getElementById('gameOverScreen').classList.remove('active');
+  // Go back to host login so they can set up fresh
+  showScreen('hostLoginScreen');
+  toast('Game reset! Set up a new game.');
+}
+
+function renderGameOver(){
+  if(gameState.phase!=='done') return;
+  const screen=document.getElementById('gameOverScreen');
+  if(screen.classList.contains('active')) return; // already showing
+
+  // Find winner (last survivor)
+  const survivors=gameState.players.filter(p=>!p.eliminated);
+  const winner=survivors.length===1?survivors[0]:null;
+
+  if(winner){
+    document.getElementById('winnerDisplay').style.display='block';
+    document.getElementById('winnerName').textContent=winner.name;
+    document.getElementById('winnerTeam').textContent=winner.team?winner.team:'';
+    document.getElementById('gameOverSubtitle').textContent=gameState.gameName;
+  } else {
+    document.getElementById('winnerDisplay').style.display='none';
+    document.getElementById('gameOverSubtitle').textContent=gameState.gameName+' — Game ended';
+  }
+
+  // Elim history
+  const hist=gameState.elimHistory||[];
+  document.getElementById('elimHistoryList').innerHTML=hist.length?
+    hist.map((e,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px">
+      <div>
+        <span style="font-size:12px;color:var(--muted);margin-right:8px">Rd ${e.round}</span>
+        <span style="font-weight:700">${e.name}</span>
+        ${e.team?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${e.team}</span>`:''}
+      </div>
+      <span style="font-size:12px;color:var(--elim)">${e.votes} vote${e.votes!==1?'s':''}</span>
+    </div>`).join(''):
+    '<div style="font-size:13px;color:var(--muted);text-align:center;padding:10px">No eliminations recorded</div>';
+
+  // Show/hide host controls
+  document.getElementById('newGameBtns').style.display=isHost?'block':'none';
+  document.getElementById('playerGameOverMsg').style.display=isHost?'none':'block';
+
+  screen.classList.add('active');
+}
+
 // ── MERGE TRIBES ──
 async function hostMergeTribes(){
   const name = document.getElementById('mergeNameInput').value.trim() || 'No Mercy';
@@ -1631,6 +1781,65 @@ function renderTeamReassign(){
   }).join('');
 }
 
+// ── NEW GAME / RESET ──
+async function hostNewGame(){
+  if(!confirm('Start a completely new game? This will clear all current data.')) return;
+  await api('/reset',{});
+  // Reset all local state
+  isHost=false; myName=''; myVote=null;
+  lastUpdatedAt=0; picSubmitted=false; picAnswers=['','','','',''];
+  triviaAnswered=false; sortSubmitted=false; sortOrder=[];
+  if(pollTimer) clearInterval(pollTimer);
+  if(picTimerInterval) clearInterval(picTimerInterval);
+  if(triviaTimerInterval) clearInterval(triviaTimerInterval);
+  if(sortTimerInterval) clearInterval(sortTimerInterval);
+  pollTimer=null; picTimerInterval=null; triviaTimerInterval=null; sortTimerInterval=null;
+  gameState=defaultState();
+  document.getElementById('gameOverScreen').classList.remove('active');
+  // Go back to host login so they can set up fresh
+  showScreen('hostLoginScreen');
+  toast('Game reset! Set up a new game.');
+}
+
+function renderGameOver(){
+  if(gameState.phase!=='done') return;
+  const screen=document.getElementById('gameOverScreen');
+  if(screen.classList.contains('active')) return; // already showing
+
+  // Find winner (last survivor)
+  const survivors=gameState.players.filter(p=>!p.eliminated);
+  const winner=survivors.length===1?survivors[0]:null;
+
+  if(winner){
+    document.getElementById('winnerDisplay').style.display='block';
+    document.getElementById('winnerName').textContent=winner.name;
+    document.getElementById('winnerTeam').textContent=winner.team?winner.team:'';
+    document.getElementById('gameOverSubtitle').textContent=gameState.gameName;
+  } else {
+    document.getElementById('winnerDisplay').style.display='none';
+    document.getElementById('gameOverSubtitle').textContent=gameState.gameName+' — Game ended';
+  }
+
+  // Elim history
+  const hist=gameState.elimHistory||[];
+  document.getElementById('elimHistoryList').innerHTML=hist.length?
+    hist.map((e,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px">
+      <div>
+        <span style="font-size:12px;color:var(--muted);margin-right:8px">Rd ${e.round}</span>
+        <span style="font-weight:700">${e.name}</span>
+        ${e.team?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${e.team}</span>`:''}
+      </div>
+      <span style="font-size:12px;color:var(--elim)">${e.votes} vote${e.votes!==1?'s':''}</span>
+    </div>`).join(''):
+    '<div style="font-size:13px;color:var(--muted);text-align:center;padding:10px">No eliminations recorded</div>';
+
+  // Show/hide host controls
+  document.getElementById('newGameBtns').style.display=isHost?'block':'none';
+  document.getElementById('playerGameOverMsg').style.display=isHost?'none':'block';
+
+  screen.classList.add('active');
+}
+
 // ── MERGE TRIBES ──
 async function hostMergeTribes(){
   const name = document.getElementById('mergeNameInput').value.trim() || 'No Mercy';
@@ -1640,14 +1849,6 @@ async function hostMergeTribes(){
   toast('⚔️ Tribes merged into '+name+'!');
 }
 
-// ── HOST END GAME ──
-async function hostEndGame(){
-  if(!confirm('End the game now and declare a winner?')) return;
-  gameState.phase='done';
-  await saveState();
-  renderAll();
-  toast('Game over! Thanks for playing 🏆');
-}
 
 // ── HOST TEAM REASSIGN ──
 async function hostReassignTeam(playerName, newTeam){
