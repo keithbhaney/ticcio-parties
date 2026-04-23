@@ -942,11 +942,12 @@ async function hostNextRound(){
   picSubmitted=false;
   await loadState(); renderAll(); toast('Round '+gameState.round+' begins!');
 }
-function closeElimModal(){ document.getElementById('elimModal').classList.remove('active'); }
+function closeElimModal(){ document.getElementById('elimModal').classList.remove('active'); if(!isHost) showTab('bracket'); }
 
 // ── PLAYER VOTING ──
 async function submitVote(target){
   if(myVote) return;
+  if(isPlayerEliminated()){ toast('You have been eliminated!',true); return; }
   try{
     const r=await fetch(API+'/vote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({voterName:myName,targetName:target})});
     const d=await r.json();
@@ -1023,6 +1024,7 @@ function renderPicChallenge(pc){
 
 async function submitPicAnswers(){
   if(picSubmitted) return;
+  if(isPlayerEliminated()){ toast('You have been eliminated!',true); return; }
   if(picTimerInterval){ clearInterval(picTimerInterval); picTimerInterval=null; }
   picSubmitted=true;
   try{
@@ -1414,6 +1416,7 @@ async function hostNttScore(playerName, points){
 
 async function submitNttAnswer(){
   if(nttAnswered) return;
+  if(isPlayerEliminated()){ toast('You have been eliminated!',true); return; }
   const artist = document.getElementById('nttArtistInput').value.trim();
   const song = document.getElementById('nttSongInput').value.trim();
   if(!artist&&!song){ toast('Enter at least one answer',true); return; }
@@ -1523,6 +1526,13 @@ function renderNttHostPanel(ntt){
   }).join('');
 }
 
+// ── ELIMINATED PLAYER GUARD ──
+function isPlayerEliminated(){
+  if(!myName||myName==='__host__') return false;
+  const me=gameState.players.find(p=>p.name===myName);
+  return me?me.eliminated:false;
+}
+
 // ── SORT IT JS ──
 let sortTimerInterval = null;
 let sortSubmitted = false;
@@ -1573,6 +1583,7 @@ function startSortTimer(seconds){
 
 async function submitSortAnswer(){
   if(sortSubmitted) return;
+  if(isPlayerEliminated()){ toast('You have been eliminated!',true); return; }
   sortSubmitted = true;
   if(sortTimerInterval){ clearInterval(sortTimerInterval); sortTimerInterval=null; }
   try{
@@ -1646,19 +1657,33 @@ function renderSortList(showResult){
   if(!sc) return;
   const list = document.getElementById('sortList');
   if(!list) return;
-  list.innerHTML = sortOrder.map((item,i)=>{
-    let cls='sort-item';
-    if(showResult&&sc.revealed){
-      if(item===sc.correctOrder[i]) cls+=' correct-pos';
-      else cls+=' wrong-pos';
-    }
-    return `<div class="${cls}" draggable="true" data-idx="${i}">
-      <div class="sort-num">${i+1}</div>
-      <span style="flex:1">${item}</span>
-      <span class="sort-handle">⠿</span>
-    </div>`;
-  }).join('');
-  if(!sortSubmitted) initSortDrag();
+  // On reveal, show full correct order with hints; otherwise show clean display items
+  if(showResult && sc.revealed && sc.correctOrder){
+    // Show correct order with full labels
+    list.innerHTML = sc.correctOrder.map((item,i)=>{
+      const myItem = sortOrder[i];
+      const correctDisplay = sc.displayItems?.[i] || item.replace(/\s*\([^)]+\)\s*$/,'').trim();
+      const myDisplay = myItem;
+      const isCorrect = myDisplay === correctDisplay;
+      return `<div class="sort-item ${isCorrect?'correct-pos':'wrong-pos'}" style="cursor:default">
+        <div class="sort-num" style="background:${isCorrect?'rgba(34,170,102,0.3)':'rgba(204,34,0,0.3)'}">${i+1}</div>
+        <div style="flex:1">
+          <div style="font-weight:700">${item}</div>
+          ${!isCorrect?`<div style="font-size:11px;color:var(--elim);margin-top:2px">You had: ${myItem}</div>`:''}
+        </div>
+        <span style="font-size:16px">${isCorrect?'✅':'❌'}</span>
+      </div>`;
+    }).join('');
+  } else {
+    list.innerHTML = sortOrder.map((item,i)=>{
+      return `<div class="sort-item" draggable="true" data-idx="${i}">
+        <div class="sort-num">${i+1}</div>
+        <span style="flex:1">${item}</span>
+        <span class="sort-handle">⠿</span>
+      </div>`;
+    }).join('');
+    if(!sortSubmitted) initSortDrag();
+  }
 }
 
 function renderSortForPlayer(sc){
@@ -1671,6 +1696,7 @@ function renderSortForPlayer(sc){
 
   // Init sortOrder from shuffled if not yet set or new challenge
   if(!sortSubmitted && sortOrder.length===0){
+    // Use shuffledItems which are already stripped of hints by server
     sortOrder=[...sc.shuffledItems];
   }
 
@@ -1779,6 +1805,7 @@ function startTriviaTimer(seconds){
 
 async function submitTriviaAnswer(answerIndex, btn){
   if(triviaAnswered) return;
+  if(isPlayerEliminated()){ toast('You have been eliminated!',true); return; }
   triviaAnswered = true;
   const timeTaken = triviaQStartTime ? (Date.now()-triviaQStartTime)/1000 : 15;
   if(triviaTimerInterval){ clearInterval(triviaTimerInterval); triviaTimerInterval=null; }
