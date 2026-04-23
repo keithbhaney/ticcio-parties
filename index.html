@@ -998,7 +998,14 @@ function renderPicChallenge(pc){
     picSubmitted = false;
     picAnswers = ['','','','',''];
     if(picTimerInterval){ clearInterval(picTimerInterval); picTimerInterval=null; }
+    // Reset timer display
+    const tb = document.getElementById('timerBar');
+    const tt = document.getElementById('picTimer_display');
+    if(tb) tb.style.width='100%';
+    if(tt) tt.textContent=pc.timeLimit||60;
   }
+  // Only mark submitted if THIS challenge was submitted
+  if(pc.playerAnswers && pc.playerAnswers[myName]) picSubmitted = true;
 
   wrap.style.display='block';
   document.getElementById('challengeScores').style.display='none';
@@ -1346,11 +1353,27 @@ function startPolling(){
     if(gameState.updatedAt!==lastUpdatedAt){
       lastUpdatedAt=gameState.updatedAt;
       if(myName&&gameState.votes[myName]) myVote=gameState.votes[myName];
-      // Reset pic submitted if round changed or challenge cleared
-      if(!gameState.pictureChallenge) { picSubmitted=false; picAnswers=['','','','','']; if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;} }
-      if(!gameState.triviaChallenge) { triviaAnswered=false; if(triviaTimerInterval){clearInterval(triviaTimerInterval);triviaTimerInterval=null;} }
-      if(!gameState.sortChallenge) { sortSubmitted=false; sortOrder=[]; if(sortTimerInterval){clearInterval(sortTimerInterval);sortTimerInterval=null;} }
-      if(!gameState.nttChallenge) { nttAnswered=false; lastNttPlaying=false; }
+      // Reset challenge state when challenge cleared OR replaced with new one
+      const sc = gameState.sortChallenge;
+      const tc = gameState.triviaChallenge;
+      const pc = gameState.pictureChallenge;
+      const nc = gameState.nttChallenge;
+
+      if(!pc || (pc.startedAt !== lastPicStartedAt && !pc.playerAnswers?.[myName])){
+        if(!pc){ picSubmitted=false; picAnswers=['','','','','']; lastPicStartedAt=null; }
+        if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;}
+      }
+      if(!tc || tc.startedAt !== lastTriviaStartedAt){
+        if(!tc){ triviaAnswered=false; lastTriviaStartedAt=null; lastTriviaQ=null; }
+        if(triviaTimerInterval){clearInterval(triviaTimerInterval);triviaTimerInterval=null;}
+      }
+      if(!sc || (sc.startedAt !== lastSortStartedAt && !sc.playerAnswers?.[myName])){
+        if(!sc){ sortSubmitted=false; sortOrder=[]; lastSortStartedAt=null; }
+        if(sortTimerInterval){clearInterval(sortTimerInterval);sortTimerInterval=null;}
+      }
+      if(!nc || nc.startedAt !== lastNttStartedAt){
+        if(!nc){ nttAnswered=false; lastNttPlaying=false; lastNttStartedAt=null; }
+      }
       // Show elim modal on player screens when host reveals
       if(!isHost && gameState.revealed && gameState.phase==='reveal'){
         const lastElim=gameState.elimHistory[gameState.elimHistory.length-1];
@@ -1459,8 +1482,14 @@ function renderNttForPlayer(ntt){
     lastNttStartedAt = ntt.startedAt;
     nttAnswered = false;
     lastNttPlaying = false;
+    // Reset UI
+    const iframe = document.getElementById('nttPlayerIframe');
+    if(iframe) iframe.src='';
+    document.getElementById('nttAnswerForm').style.display='none';
+    document.getElementById('nttAnsweredMsg').style.display='none';
   }
-  const alreadyAnswered = !!(ntt.playerAnswers&&ntt.playerAnswers[myName]);
+  // Only mark answered if THIS challenge has been answered
+  const alreadyAnswered = !!(ntt.playerAnswers && ntt.playerAnswers[myName]);
   if(alreadyAnswered) nttAnswered = true;
 
   if(ntt.playing && !lastNttPlaying){
@@ -1715,28 +1744,36 @@ function renderSortForPlayer(sc){
   document.getElementById('sortPromptDisplay').textContent=sc.prompt||'Put in the correct order';
   document.getElementById('sortHint').textContent=sc.hint||'';
 
-  // Detect new challenge — reset if startedAt changed
+  // Detect new challenge — reset everything if startedAt changed
   if(sc.startedAt !== lastSortStartedAt){
     lastSortStartedAt = sc.startedAt;
     sortSubmitted = false;
     sortOrder = [];
     if(sortTimerInterval){ clearInterval(sortTimerInterval); sortTimerInterval = null; }
+    // Clear timer display too
+    const timerText = document.getElementById('sortTimerText');
+    const timerBar = document.getElementById('sortTimerBar');
+    if(timerText) timerText.textContent = sc.timeLimit;
+    if(timerBar) timerBar.style.width = '100%';
+    document.getElementById('sortSubmitArea').style.display='block';
+    document.getElementById('sortResultMsg').style.display='none';
   }
 
-  // Init sortOrder from shuffled if not yet set
+  // Only mark as already answered if it's THIS challenge's answer (not a previous round's)
+  const alreadyAnswered = !!(sc.playerAnswers && sc.playerAnswers[myName]);
+  if(alreadyAnswered) sortSubmitted = true;
+
+  // Init sortOrder from shuffled if not yet submitted
   if(!sortSubmitted && sortOrder.length===0){
     sortOrder=[...sc.shuffledItems];
   }
 
-  // Timer
-  if(!sortSubmitted&&!sortTimerInterval){
+  // Start timer only if not submitted and no timer running
+  if(!sortSubmitted && !sortTimerInterval){
     const elapsed=(Date.now()-sc.startedAt)/1000;
     const remaining=Math.max(0,sc.timeLimit-elapsed);
     if(remaining>0) startSortTimer(remaining);
   }
-
-  const alreadyAnswered=!!(sc.playerAnswers&&sc.playerAnswers[myName]);
-  if(alreadyAnswered) sortSubmitted=true;
 
   if(sortSubmitted){
     document.getElementById('sortSubmitArea').style.display='none';
@@ -1883,17 +1920,21 @@ function renderTriviaForPlayer(tc){
   document.getElementById('triviaQuestion').textContent = q.q;
 
   // Reset per-question state
-  // Detect new challenge or new question
+  // Detect new challenge
   if(tc.startedAt !== lastTriviaStartedAt){
     lastTriviaStartedAt = tc.startedAt;
+    lastTriviaQ = null;
     triviaAnswered = false;
     if(triviaTimerInterval){ clearInterval(triviaTimerInterval); triviaTimerInterval=null; }
   }
+  // Detect new question within same challenge
   if(tc.currentQ !== lastTriviaQ){
     lastTriviaQ = tc.currentQ;
     triviaAnswered = false;
     if(triviaTimerInterval){ clearInterval(triviaTimerInterval); triviaTimerInterval=null; }
+    document.getElementById('triviaFeedback').style.display='none';
   }
+  // Only mark answered if THIS question has been answered
   triviaAnswered = !!(tc.playerAnswers[myName] && tc.playerAnswers[myName][tc.currentQ] !== undefined);
   const fb = document.getElementById('triviaFeedback');
   fb.style.display='none';
