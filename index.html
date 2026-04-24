@@ -1641,7 +1641,7 @@ function startSortTimer(seconds){
 
 async function submitSortAnswer(){
   if(sortSubmitted) return;
-  if(isPlayerEliminated()){ toast('You've been voted out — watch only!',true); return; }
+  if(isPlayerEliminated()){ toast('You have been voted out — watch only!',true); return; }
   sortSubmitted = true;
   if(sortTimerInterval){ clearInterval(sortTimerInterval); sortTimerInterval=null; }
   const sortTimeTaken = sc ? Math.min((Date.now()-sc.startedAt)/1000, sc.timeLimit) : 45;
@@ -1766,7 +1766,7 @@ function renderSortForPlayer(sc){
     specBanner = document.createElement('div');
     specBanner.id = 'sortSpectatorBanner';
     specBanner.style.cssText='background:rgba(204,34,0,0.12);border:1px solid rgba(204,34,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-size:13px;color:#FF6655;font-weight:700;display:none';
-    specBanner.textContent='👁️ You've been voted out — watching only';
+    specBanner.textContent='👁️ Voted out — watching only';
     wrap.insertBefore(specBanner, wrap.firstChild);
   }
   specBanner.style.display = eliminated ? 'block' : 'none';
