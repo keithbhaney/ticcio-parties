@@ -299,6 +299,11 @@ select.input{cursor:pointer}
       </div>
       <div id="youAreTeam" style="margin-left:auto;font-size:11px;font-weight:700"></div>
     </div>
+    <div id="mergeWarningBanner" style="display:none;background:rgba(255,107,53,0.15);border:1px solid rgba(255,107,53,0.5);border-radius:10px;padding:12px 14px;margin-bottom:12px">
+      <div style="font-weight:700;color:var(--fire2);margin-bottom:4px">⚠️ Merge Recommended</div>
+      <div id="mergeWarningText" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
+      <button class="btn btn-danger btn-sm" onclick="showTab('bracket')" style="width:100%">Go to Tribe → Merge Teams</button>
+    </div>
     <div id="hostTeamPanel" style="display:none;margin-bottom:12px">
       <div class="host-panel">
         <h4>👥 Tribe Management</h4>
@@ -752,6 +757,7 @@ async function joinGame(){
 async function loadCategories(){
   await loadTriviaCategories();
   await loadSortCategories();
+  loadPicCategoriesFromClient();
   try{
     const cats=await api('/categories');
     const sel=document.getElementById('picCategory');
@@ -1028,14 +1034,21 @@ function renderPicChallenge(pc){
   const remaining=Math.max(0,pc.timeLimit-elapsed);
   if(remaining>0 && !picTimerInterval) startPicTimer(remaining);
 
-  grid.innerHTML=pc.questions.map((q,i)=>`
-    <div class="pic-item ${picAnswers[i]?'answered':''}" id="picItem${i}">
+  // Use client-side PIC_DB images if available (bypasses CORS issues)
+  const clientCat = pc.category && PIC_DB[pc.category] ? PIC_DB[pc.category].questions : null;
+  grid.innerHTML=pc.questions.map((q,i)=>{
+    // Use client image if server image likely broken, match by index
+    const imgSrc = clientCat ? clientCat[i%clientCat.length].image : q.image;
+    const hint = clientCat ? clientCat[i%clientCat.length].hint : (q.hint||'');
+    return `<div class="pic-item ${picAnswers[i]?'answered':''}" id="picItem${i}">
       <div class="pic-num">Image ${i+1} of 5</div>
-      <img class="pic-thumb" src="${q.image}" alt="Image ${i+1}" referrerpolicy="no-referrer" onclick="openLightbox('${q.image}','${q.hint||''}')" loading="lazy" onerror="this.outerHTML='<div style=\'width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;background:#1A2535\'><div style=\'font-size:28px\'>🖼️</div><div style=\'font-size:10px;color:#8A9BB5;text-align:center;padding:4px\'>Tap hint below</div></div>'">
+      <img class="pic-thumb" src="${imgSrc}" alt="Image ${i+1}" referrerpolicy="no-referrer" crossorigin="anonymous" onclick="openLightbox('${imgSrc}','${hint}')" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div style="display:none;width:100%;aspect-ratio:1;align-items:center;justify-content:center;flex-direction:column;gap:6px;background:#1A2535;border-radius:8px"><div style="font-size:28px">🖼️</div><div style="font-size:10px;color:#8A9BB5;text-align:center;padding:4px">Image unavailable</div></div>
       <div class="pic-input-wrap">
         <input class="pic-input" type="text" placeholder="Your answer..." value="${picAnswers[i]}" oninput="picAnswers[${i}]=this.value;document.getElementById('picItem${i}').className='pic-item '+(this.value?'answered':'')">
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 async function submitPicAnswers(){
@@ -1140,6 +1153,33 @@ function renderBracketTab(){
   document.getElementById('elimCount').textContent=elim.length;
   phaseBanner(document.getElementById('phaseBannerBracket'),gameState.phase);
 
+  // Check if merge is recommended (any team down to 1 player, or team size imbalance >3)
+  if(isHost && gameState.teams.length > 1){
+    const teamSizes = {};
+    gameState.teams.forEach(t => teamSizes[t] = 0);
+    gameState.players.filter(p=>!p.eliminated).forEach(p=>{ if(p.team) teamSizes[p.team]=(teamSizes[p.team]||0)+1; });
+    const sizes = Object.values(teamSizes);
+    const minSize = Math.min(...sizes);
+    const maxSize = Math.max(...sizes);
+    const tinyTeams = Object.entries(teamSizes).filter(([,s])=>s<=1).map(([t])=>t);
+    const banner = document.getElementById('mergeWarningBanner');
+    const txt = document.getElementById('mergeWarningText');
+    if(banner){
+      if(tinyTeams.length > 0){
+        banner.style.display='block';
+        txt.textContent = tinyTeams.map(t=>`${t} has only ${teamSizes[t]} player`).join(', ')+'. Consider merging tribes.';
+      } else if(maxSize - minSize >= 3){
+        banner.style.display='block';
+        txt.textContent = `Teams are unbalanced (${minSize}–${maxSize} players). Consider merging tribes.`;
+      } else {
+        banner.style.display='none';
+      }
+    }
+  } else {
+    const banner = document.getElementById('mergeWarningBanner');
+    if(banner) banner.style.display='none';
+  }
+
   const cib=document.getElementById('challengeInfoBracket');
   if(gameState.currentChallenge&&gameState.phase==='challenge'){
     cib.innerHTML=`<div class="challenge-card"><div class="challenge-name">⚡ ${gameState.currentChallenge.name}</div>${gameState.currentChallenge.description?`<div style="font-size:13px;color:var(--muted)">${gameState.currentChallenge.description}</div>`:''}</div>`;
@@ -1180,28 +1220,40 @@ function renderVotingTab(){
   const alive=gameState.players.filter(p=>!p.eliminated);
   const alreadyVoted=myVote||(myName&&gameState.votes[myName]);
   const myPlayer=gameState.players.find(p=>p.name===myName);
-  const canVote=gameState.votingPool.length===0||gameState.votingPool.includes(myName);
+  // In individual mode: immune players CAN vote (just can't be voted for)
+  // In team mode: only losing team votes
+  const teamsActive = gameState.teams.length > 1;
+  const canVote = teamsActive
+    ? (gameState.votingPool.length===0 || gameState.votingPool.includes(myName))
+    : !myPlayer?.eliminated; // individual: anyone alive can vote
 
   if(!isHost){
     const mvs=document.getElementById('myVoteStatus');
     const vl=document.getElementById('voteList');
-    if(gameState.phase==='voting'&&!alreadyVoted&&canVote&&!myPlayer?.immune){
+    if(gameState.phase==='voting'&&!alreadyVoted&&canVote){
       mvs.style.display='none';
-      vl.innerHTML=alive.map(p=>{
-        const ti=teamIndexOf(p.team);
-        const c=ti>=0?teamColor(ti).bg:avatarBg(gameState.players.indexOf(p));
-        const isMe=p.name===myName;
-        return `<button class="vote-player-btn" onclick="submitVote('${p.name}')" ${isMe||p.immune?'disabled':''}>
-          <div class="vote-mini-avatar" style="background:${c};color:#0A0F1A">${initials(p.name)}</div>
-          <div style="flex:1;text-align:left"><div>${p.name}</div>${p.team?`<div style="font-size:10px;color:var(--muted)">${p.team}</div>`:''}</div>
-          ${p.immune?'<span style="font-size:11px;color:var(--immune)">🛡️</span>':''}
-          ${isMe?'<span style="font-size:11px;color:var(--muted)">You</span>':''}
-        </button>`;
-      }).join('');
+      // In team mode: only show own team as targets
+      // In individual mode: show all alive except self, immune can still be shown but not voted for
+      const voteTargets = teamsActive
+        ? alive.filter(p=>p.team===myPlayer?.team&&p.name!==myName)
+        : alive.filter(p=>p.name!==myName);
+      if(voteTargets.length===0){
+        vl.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)"><div style="font-size:28px;margin-bottom:8px">🤷</div><div style="font-weight:700">No one to vote for</div></div>';
+      } else {
+        vl.innerHTML=voteTargets.map(p=>{
+          const ti=teamIndexOf(p.team);
+          const c=ti>=0?teamColor(ti).bg:avatarBg(gameState.players.indexOf(p));
+          return `<button class="vote-player-btn" onclick="submitVote('${p.name}')" ${p.immune?'disabled':''}>
+            <div class="vote-mini-avatar" style="background:${c};color:#0A0F1A">${initials(p.name)}</div>
+            <div style="flex:1;text-align:left"><div>${p.name}</div>${p.team?`<div style="font-size:10px;color:var(--muted)">${p.team}</div>`:''}</div>
+            ${p.immune?'<span style="font-size:11px;color:var(--immune)">🛡️ Immune</span>':''}
+          </button>`;
+        }).join('');
+      }
     } else if(gameState.phase==='voting'){
       mvs.style.display='block';
       if(myPlayer?.immune) document.getElementById('myVoteFor').textContent='You have immunity this round!';
-      else if(!canVote) document.getElementById('myVoteFor').textContent='Your team won — no vote needed!';
+      else if(!canVote) document.getElementById('myVoteFor').textContent=teamsActive?'Your team won — no vote needed!':'You cannot vote this round';
       else document.getElementById('myVoteFor').textContent='You voted for '+(myVote||gameState.votes[myName]);
       vl.innerHTML='';
     } else {
@@ -2018,6 +2070,7 @@ function renderTriviaForPlayer(tc){
 
   const letters = ['A','B','C','D'];
   const myAnswer = tc.playerAnswers[myName]?.[tc.currentQ];
+  const triviaEliminated = isPlayerEliminated();
   document.getElementById('triviaOptions').innerHTML = q.options.map((opt,i)=>{
     let cls = 'trivia-option';
     if(triviaAnswered){
@@ -2354,6 +2407,55 @@ function renderTeamReassign(){
       <select class="player-team-select" onchange="hostReassignTeam('${p.name}',this.value)">${opts}</select>
     </div>`;
   }).join('');
+}
+
+
+// ── CLIENT-SIDE PICTURE DATABASE ──
+// Images fetched directly in browser, bypassing server CORS issues
+const PIC_DB = {
+  paintings: { label:"🖼️ Famous Paintings", questions:[
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/402px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg", answers:["mona lisa"], hint:"Leonardo da Vinci · Louvre, Paris" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/757px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg", answers:["the starry night","starry night"], hint:"Vincent van Gogh · 1889" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg/461px-Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg", answers:["the scream","scream"], hint:"Edvard Munch · 1893" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/747px-1665_Girl_with_a_Pearl_Earring.jpg", answers:["girl with a pearl earring","pearl earring"], hint:"Johannes Vermeer · 1665" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Gustave_Caillebotte_-_Paris_Street%3B_Rainy_Day_-_Google_Art_Project.jpg/1024px-Gustave_Caillebotte_-_Paris_Street%3B_Rainy_Day_-_Google_Art_Project.jpg", answers:["paris street rainy day","rainy day"], hint:"Gustave Caillebotte · 1877" }
+  ]},
+  cities: { label:"🌆 Cities", questions:[
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Sydney_Opera_House_-_Dec_2008.jpg/1024px-Sydney_Opera_House_-_Dec_2008.jpg", answers:["sydney"], hint:"Opera House · Australia" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Colosseum_in_Rome-April_2007-1-_copie_2B.jpg/1024px-Colosseum_in_Rome-April_2007-1-_copie_2B.jpg", answers:["rome"], hint:"Ancient amphitheater · Eternal City" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Hagia_Sophia_mosque_amk.jpg/1024px-Hagia_Sophia_mosque_amk.jpg", answers:["istanbul"], hint:"Hagia Sophia · Turkey" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Machu_Picchu%2C_Peru.jpg/1024px-Machu_Picchu%2C_Peru.jpg", answers:["machu picchu"], hint:"Ancient Incan citadel · Peru" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Southwest_corner_of_Central_Park%2C_looking_east%2C_NYC.jpg/1024px-Southwest_corner_of_Central_Park%2C_looking_east%2C_NYC.jpg", answers:["new york","new york city","nyc"], hint:"Central Park · The Big Apple" }
+  ]},
+  politicians: { label:"🏛️ Politicians", questions:[
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Abraham_Lincoln_O-77_matte_collodion_print.jpg/562px-Abraham_Lincoln_O-77_matte_collodion_print.jpg", answers:["abraham lincoln","lincoln"], hint:"16th US President · Gettysburg Address" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/President_Barack_Obama.jpg/800px-President_Barack_Obama.jpg", answers:["barack obama","obama"], hint:"44th US President" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Churchill_V_sign_HU_55521.jpg/600px-Churchill_V_sign_HU_55521.jpg", answers:["winston churchill","churchill"], hint:"British WWII Prime Minister" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Jfk2.jpg/578px-Jfk2.jpg", answers:["john f kennedy","jfk","kennedy"], hint:"35th US President · assassinated 1963" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Nelson_Mandela-2008_%28edit%29.jpg/440px-Nelson_Mandela-2008_%28edit%29.jpg", answers:["nelson mandela","mandela"], hint:"South Africa · anti-apartheid leader" }
+  ]},
+  athletes: { label:"🏆 Athletes", questions:[
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Usain_Bolt_Olympics_cropped.jpg/600px-Usain_Bolt_Olympics_cropped.jpg", answers:["usain bolt","bolt"], hint:"World's fastest man · Jamaica" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Muhammad_Ali_NYWTS.jpg/440px-Muhammad_Ali_NYWTS.jpg", answers:["muhammad ali","ali","cassius clay"], hint:"The Greatest · heavyweight boxing" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Roger_Federer_2012_Wimbledon.jpg/800px-Roger_Federer_2012_Wimbledon.jpg", answers:["roger federer","federer"], hint:"Swiss tennis legend · 8x Wimbledon" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Elvis_Presley_promoting_Jailhouse_Rock.jpg/600px-Elvis_Presley_promoting_Jailhouse_Rock.jpg", answers:["elvis presley","elvis"], hint:"The King of Rock and Roll" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Pele_con_brasil.jpg/440px-Pele_con_brasil.jpg", answers:["pele","pelé"], hint:"Brazilian soccer legend · 3x World Cup" }
+  ]},
+  animals: { label:"🐾 Animals", questions:[
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat_03.jpg/1024px-Cat_03.jpg", answers:["cat"], hint:"Common household pet · says meow" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Koala_climbing_tree.jpg/600px-Koala_climbing_tree.jpg", answers:["koala"], hint:"Australian marsupial · loves eucalyptus" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Nile_crocodile_head.jpg/1024px-Nile_crocodile_head.jpg", answers:["crocodile","nile crocodile"], hint:"Large reptile · Africa" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Eublepharis_macularius_2009_G1.jpg/1024px-Eublepharis_macularius_2009_G1.jpg", answers:["leopard gecko","gecko"], hint:"Small spotted lizard · popular exotic pet" },
+    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Tikal-oso_hormiguero.jpg/800px-Tikal-oso_hormiguero.jpg", answers:["anteater","giant anteater"], hint:"Long snout · eats thousands of ants daily" }
+  ]}
+};
+
+// Load PIC_DB categories into the host dropdown
+function loadPicCategoriesFromClient(){
+  const sel = document.getElementById('picCategory');
+  if(!sel) return;
+  sel.innerHTML = Object.entries(PIC_DB).map(([key,val])=>
+    `<option value="${key}">${val.label}</option>`).join('');
 }
 
 (async()=>{ await loadState(); showScreen('joinScreen'); })();
