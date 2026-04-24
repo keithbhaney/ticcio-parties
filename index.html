@@ -133,12 +133,12 @@ select.input{cursor:pointer}
 .ntt-answer-form{background:var(--card);border-radius:14px;padding:16px;border:1px solid rgba(255,255,255,0.08)}
 
 /* ── SORT IT CHALLENGE ── */
-.sort-item{background:var(--card);border:2px solid rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:grab;display:flex;align-items:center;gap:12px;font-weight:700;font-size:14px;transition:all .2s;user-select:none;touch-action:none}
+.sort-item{background:var(--card);border:2px solid rgba(255,255,255,0.12);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:grab;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;gap:12px;font-weight:700;font-size:14px;transition:all .2s;user-select:none;-webkit-user-select:none;touch-action:none}
 .sort-item:active{cursor:grabbing}
 .sort-item.dragging{opacity:.4;border-style:dashed}
 .sort-item.drag-over{border-color:var(--fire);background:rgba(255,107,53,0.1);transform:scale(1.02)}
-.sort-item.correct-pos{border-color:var(--immune);background:rgba(34,170,102,0.15)}
-.sort-item.wrong-pos{border-color:var(--elim);background:rgba(204,34,0,0.1)}
+.sort-item.correct-pos{border-color:#22AA66;background:rgba(34,170,102,0.15)}
+.sort-item.wrong-pos{border-color:#CC2200;background:rgba(204,34,0,0.1)}
 .sort-num{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;flex-shrink:0;color:var(--muted)}
 .sort-handle{color:var(--muted);font-size:18px;margin-left:auto;flex-shrink:0}
 .sort-submitted .sort-item{cursor:default}
@@ -1471,6 +1471,18 @@ function renderNttForPlayer(ntt){
 
   document.getElementById('nttRoundLabelDisplay').textContent = ntt.roundLabel||'Name That Tune';
 
+  const eliminated = isPlayerEliminated();
+  let specBanner = document.getElementById('nttSpectatorBanner');
+  if(!specBanner){
+    specBanner = document.createElement('div');
+    specBanner.id = 'nttSpectatorBanner';
+    specBanner.style.cssText='background:rgba(204,34,0,0.12);border:1px solid rgba(204,34,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-size:13px;color:#FF6655;font-weight:700;display:none';
+    specBanner.textContent="👁️ You've been voted out — watching only";
+    wrap.insertBefore(specBanner, wrap.firstChild);
+  }
+  specBanner.style.display = eliminated ? 'block' : 'none';
+  wrap.style.opacity = eliminated ? '0.7' : '1';
+
   const statusIcon = document.getElementById('nttStatusIcon');
   const statusText = document.getElementById('nttStatusText');
   const iframe = document.getElementById('nttPlayerIframe');
@@ -1516,7 +1528,7 @@ function renderNttForPlayer(ntt){
     document.getElementById('nttStatusDisplay').innerHTML = `
       <div style="font-size:36px;margin-bottom:8px">⏹️</div>
       <div style="font-weight:700;color:var(--text)">Music stopped — submit your answer!</div>`;
-    if(!nttAnswered){
+    if(!nttAnswered && !eliminated){
       answerForm.style.display='block';
       answeredMsg.style.display='none';
     }
@@ -1629,13 +1641,16 @@ function startSortTimer(seconds){
 
 async function submitSortAnswer(){
   if(sortSubmitted) return;
-  if(isPlayerEliminated()){ toast('You have been eliminated!',true); return; }
+  if(isPlayerEliminated()){ toast('You've been voted out — watch only!',true); return; }
   sortSubmitted = true;
   if(sortTimerInterval){ clearInterval(sortTimerInterval); sortTimerInterval=null; }
+  const sortTimeTaken = sc ? Math.min((Date.now()-sc.startedAt)/1000, sc.timeLimit) : 45;
   try{
-    await fetch(API+'/sortit/answer',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({playerName:myName, orderedItems:sortOrder})});
-  }catch(e){}
+    const res = await fetch(API+'/sortit/answer',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({playerName:myName, orderedItems:sortOrder, timeTaken:sortTimeTaken})});
+    const data = await res.json();
+    console.log('Sort answer result:', data); // debug
+  }catch(e){ console.error('Sort submit error:', e); }
   document.getElementById('sortSubmitArea').style.display='none';
   document.getElementById('sortResultMsg').style.display='block';
   document.getElementById('sortList').classList.add('sort-submitted');
@@ -1744,6 +1759,19 @@ function renderSortForPlayer(sc){
   document.getElementById('sortPromptDisplay').textContent=sc.prompt||'Put in the correct order';
   document.getElementById('sortHint').textContent=sc.hint||'';
 
+  const eliminated = isPlayerEliminated();
+  // Eliminated players see a spectator banner
+  let specBanner = document.getElementById('sortSpectatorBanner');
+  if(!specBanner){
+    specBanner = document.createElement('div');
+    specBanner.id = 'sortSpectatorBanner';
+    specBanner.style.cssText='background:rgba(204,34,0,0.12);border:1px solid rgba(204,34,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-size:13px;color:#FF6655;font-weight:700;display:none';
+    specBanner.textContent='👁️ You've been voted out — watching only';
+    wrap.insertBefore(specBanner, wrap.firstChild);
+  }
+  specBanner.style.display = eliminated ? 'block' : 'none';
+  wrap.style.opacity = eliminated ? '0.7' : '1';
+
   // Detect new challenge — reset everything if startedAt changed
   if(sc.startedAt !== lastSortStartedAt){
     lastSortStartedAt = sc.startedAt;
@@ -1775,18 +1803,23 @@ function renderSortForPlayer(sc){
     if(remaining>0) startSortTimer(remaining);
   }
 
-  if(sortSubmitted){
+  if(sortSubmitted || eliminated){
     document.getElementById('sortSubmitArea').style.display='none';
-    document.getElementById('sortResultMsg').style.display='block';
+    document.getElementById('sortResultMsg').style.display= eliminated&&!sortSubmitted ? 'none' : 'block';
     // Show correct order if revealed
     if(sc.revealed&&sc.correctOrder){
-      sortOrder=sc.correctOrder;
       renderSortList(true);
-      const myAnswer=sc.playerAnswers[myName]||[];
-      const correct=myAnswer.filter((item,i)=>item===sc.correctOrder[i]).length;
-      const pts=sc.scores[myName]||0;
-      document.getElementById('sortScoreMsg').textContent=`You got ${correct}/4 correct · ${pts} points`;
-    } else {
+      if(!eliminated){
+        const myAnswer=sc.playerAnswers[myName]||[];
+        const correctDisplay=sc.displayItems||sc.correctOrder.map(i=>i.replace(/\s*\([^)]+\)\s*$/,'').trim());
+        const correct=myAnswer.filter((item,i)=>item.trim()===correctDisplay[i]?.trim()).length;
+        const pts=sc.scores[myName]||0;
+        document.getElementById('sortScoreMsg').textContent=`You got ${correct}/4 correct · ${pts} points`;
+        document.getElementById('sortResultMsg').style.display='block';
+      } else {
+        document.getElementById('sortResultMsg').style.display='none';
+      }
+    } else if(!eliminated){
       renderSortList(false);
     }
   } else {
@@ -1914,6 +1947,18 @@ function renderTriviaForPlayer(tc){
   if(!tc || tc.ended){ wrap.style.display='none'; return; }
   wrap.style.display='block';
 
+  const eliminated = isPlayerEliminated();
+  let specBanner = document.getElementById('triviaSpectatorBanner');
+  if(!specBanner){
+    specBanner = document.createElement('div');
+    specBanner.id = 'triviaSpectatorBanner';
+    specBanner.style.cssText='background:rgba(204,34,0,0.12);border:1px solid rgba(204,34,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-size:13px;color:#FF6655;font-weight:700;display:none';
+    specBanner.textContent="👁️ You've been voted out — watching only";
+    wrap.insertBefore(specBanner, wrap.firstChild);
+  }
+  specBanner.style.display = eliminated ? 'block' : 'none';
+  wrap.style.opacity = eliminated ? '0.7' : '1';
+
   const q = tc.questions[tc.currentQ];
   const qNum = tc.currentQ+1;
   document.getElementById('triviaQNum').textContent = `Question ${qNum} of ${tc.questions.length}`;
@@ -1952,7 +1997,7 @@ function renderTriviaForPlayer(tc){
       if(i===q.correct) cls+=' correct';
       else if(i===myAnswer) cls+=' wrong';
     }
-    return `<button class="${cls}" onclick="submitTriviaAnswer(${i},this)" ${triviaAnswered?'disabled':''}>
+    return `<button class="${cls}" onclick="submitTriviaAnswer(${i},this)" ${triviaAnswered||triviaEliminated?'disabled':''}>
       <span class="option-letter">${letters[i]}</span>${opt}
     </button>`;
   }).join('');
