@@ -330,6 +330,11 @@ select.input{cursor:pointer}
   <!-- VOTING TAB -->
   <div class="section" id="sect-voting">
     <div id="phaseBannerVoting" class="phase-banner phase-active">⏳ No active vote</div>
+    <!-- HOST FLOW GUIDE -->
+    <div id="hostFlowGuide" style="display:none;margin-bottom:12px">
+      <div id="hostFlowContent"></div>
+    </div>
+
     <div id="hostVotingPanel" style="display:none">
       <div class="host-panel">
         <h4>🎬 Host Controls — Voting</h4>
@@ -746,7 +751,7 @@ async function joinGame(){
   const name=document.getElementById('joinNameInput').value.trim();
   if(!name){ toast('Enter your name!',true); return; }
   await loadState();
-  if(!gameState.players.length){ toast('Game not started yet — check back soon!',true); return; }
+  if(!gameState.players.length || gameState.phase==='lobby'){ toast('Game not started yet — check back soon!',true); return; }
   const match=gameState.players.find(p=>p.name.toLowerCase()===name.toLowerCase());
   if(!match){ toast('Name not on the list — ask your host!',true); return; }
   if(match.eliminated){ toast('You\'ve been voted out! 🔥',true); return; }
@@ -942,10 +947,25 @@ async function hostRevealElim(){
 }
 async function hostNextRound(){
   await api('/round/next',{});
+  // Reset all local challenge state
   document.getElementById('immunityForm').style.display='none';
   document.getElementById('challengeName').value='';
   document.getElementById('challengeDesc').value='';
-  picSubmitted=false;
+  document.getElementById('challengeDesc').value='';
+  if(document.getElementById('nttYoutubeUrl')) document.getElementById('nttYoutubeUrl').value='';
+  if(document.getElementById('nttHostIframe')) document.getElementById('nttHostIframe').src='';
+  picSubmitted=false; picAnswers=['','','','',''];
+  triviaAnswered=false; lastTriviaStartedAt=null; lastTriviaQ=null;
+  sortSubmitted=false; sortOrder=[]; lastSortStartedAt=null;
+  nttAnswered=false; lastNttPlaying=false; lastNttStartedAt=null;
+  if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;}
+  if(triviaTimerInterval){clearInterval(triviaTimerInterval);triviaTimerInterval=null;}
+  if(sortTimerInterval){clearInterval(sortTimerInterval);sortTimerInterval=null;}
+  // Update reveal button back to #1
+  const revealBtn=document.getElementById('revealBtn');
+  if(revealBtn){revealBtn.textContent='🕯️ Reveal #1';revealBtn.style.background='';}
+  if(document.getElementById('doubleElimToggle')) document.getElementById('doubleElimToggle').checked=false;
+  if(document.getElementById('doubleElimLabel')) document.getElementById('doubleElimLabel').textContent='Off';
   await loadState(); renderAll(); toast('Round '+gameState.round+' begins!');
 }
 function closeElimModal(){ document.getElementById('elimModal').classList.remove('active'); if(!isHost) showTab('bracket'); }
@@ -1130,7 +1150,7 @@ function openLightbox(src,hint){
 function closeLightbox(){ document.getElementById('lightbox').classList.remove('active'); }
 
 // ── RENDER ──
-function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHistoryTab(); renderHostPanels(); if(isHost) updateRevealBtn(); if(gameState.phase==='done') renderGameOver(); }
+function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign(); renderBracketTab(); renderVotingTab(); renderGamesTab(); renderHistoryTab(); renderHostPanels(); renderHostFlowGuide(); if(isHost) updateRevealBtn(); if(gameState.phase==='done') renderGameOver(); }
 
 function renderHeader(){
   document.getElementById('gameNameDisplay').textContent=gameState.gameName;
@@ -1383,9 +1403,25 @@ function renderHostPanels(){
   document.getElementById('hostVotingPanel').style.display=isHost?'block':'none';
   document.getElementById('playerVotingPanel').style.display=isHost?'none':'block';
   document.getElementById('hostGamesPanel').style.display=isHost?'block':'none';
-  if(isHost&&gameState.currentChallenge&&gameState.phase==='challenge'&&!gameState.pictureChallenge){
+  // Show immunity form whenever a challenge is active or just ended
+  // (phase stays 'challenge' until host opens voting)
+  const anyChallenge = gameState.currentChallenge;
+  const isPicChallenge = gameState.pictureChallenge && !gameState.pictureChallenge.ended;
+  const isTriviaChallenge = gameState.triviaChallenge && !gameState.triviaChallenge.ended;
+  const isSortChallenge = gameState.sortChallenge && !gameState.sortChallenge.ended;
+  const isNttChallenge = gameState.nttChallenge && !gameState.nttChallenge.ended;
+  const isAppChallengeLive = isPicChallenge || isTriviaChallenge || isSortChallenge || isNttChallenge;
+  const challengeEnded = anyChallenge && !isAppChallengeLive;
+
+  if(isHost && anyChallenge && (challengeEnded || gameState.currentChallenge?.type==='physical')){
     document.getElementById('immunityForm').style.display='block';
     renderImmunityWinnerSelect();
+  } else if(!anyChallenge || isAppChallengeLive){
+    // Hide during active app challenge — host uses the in-game end button
+    // Don't hide during physical challenge
+    if(gameState.currentChallenge?.type !== 'physical'){
+      document.getElementById('immunityForm').style.display='none';
+    }
   }
 }
 
@@ -2223,6 +2259,7 @@ function renderGameOver(){
   screen.classList.add('active');
 }
 
+
 // ── MERGE TRIBES ──
 async function hostMergeTribes(){
   const name = document.getElementById('mergeNameInput').value.trim() || 'No Mercy';
@@ -2348,6 +2385,57 @@ function renderGameOver(){
   document.getElementById('playerGameOverMsg').style.display=isHost?'none':'block';
 
   screen.classList.add('active');
+}
+
+// ── HOST FLOW GUIDE ──
+function renderHostFlowGuide(){
+  const el = document.getElementById('hostFlowGuide');
+  const content = document.getElementById('hostFlowContent');
+  if(!el || !isHost) return;
+
+  const phase = gameState.phase;
+  const hasChallenge = !!gameState.currentChallenge;
+  const challengeEnded = hasChallenge && (
+    (gameState.pictureChallenge?.ended) ||
+    (gameState.triviaChallenge?.ended) ||
+    (gameState.sortChallenge?.ended) ||
+    (gameState.nttChallenge?.ended) ||
+    (gameState.currentChallenge?.type === 'physical')
+  );
+  const hasImmune = gameState.immuneNames?.length > 0;
+  const votesOpen = phase === 'voting';
+  const revealed = gameState.revealed;
+  const alive = gameState.players.filter(p=>!p.eliminated).length;
+
+  el.style.display = 'block';
+
+  const steps = [
+    { label:'Launch Challenge', done: hasChallenge, active: !hasChallenge, hint:'Go to Games tab → launch a challenge' },
+    { label:'End Challenge + Score', done: challengeEnded, active: hasChallenge && !challengeEnded, hint:'End the challenge in the Games tab' },
+    { label:'Grant Immunity', done: hasImmune, active: challengeEnded && !hasImmune, hint:'Use the immunity form in Games or scroll down' },
+    { label:'Open Voting', done: votesOpen||revealed, active: hasImmune && !votesOpen && !revealed, hint:'Toggle double elim if needed, then Open Voting' },
+    { label:'Close & Reveal', done: revealed, active: votesOpen, hint:'Close Voting then Reveal Elimination' },
+    { label:'Next Round', done: false, active: revealed, hint:'Hit Next Round → to start fresh' },
+  ];
+
+  if(alive <= 1){ el.style.display='none'; return; }
+
+  content.innerHTML = `
+    <div style="background:rgba(255,107,53,0.06);border:1px solid rgba(255,107,53,0.2);border-radius:12px;padding:12px 14px">
+      <div style="font-size:10px;color:var(--fire);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;font-weight:700">📋 Round ${gameState.round} — Host Checklist</div>
+      ${steps.map((s,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 0;${i<steps.length-1?'border-bottom:1px solid rgba(255,255,255,0.05)':''}">
+          <div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;
+            background:${s.done?'rgba(34,170,102,0.3)':s.active?'rgba(255,107,53,0.3)':'rgba(255,255,255,0.06)'};
+            border:1px solid ${s.done?'var(--immune)':s.active?'var(--fire)':'rgba(255,255,255,0.1)'}">
+            ${s.done?'✓':s.active?'→':'·'}
+          </div>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:700;color:${s.done?'var(--muted)':s.active?'var(--text)':'var(--muted)'};">${s.label}</div>
+            ${s.active?`<div style="font-size:11px;color:var(--fire2);margin-top:1px">${s.hint}</div>`:''}
+          </div>
+        </div>`).join('')}
+    </div>`;
 }
 
 // ── MERGE TRIBES ──
