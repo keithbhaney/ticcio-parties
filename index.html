@@ -1269,7 +1269,7 @@ function renderGamesTab(){
     return;
   }
 
-  if(sc&&gameState.phase==='challenge'){
+  if(sc&&!sc.ended&&gameState.phase==='challenge'){
     csg.style.display='none';
     if(isHost){ renderSortHostPanel(sc); }
     else { renderSortForPlayer(sc); }
@@ -1642,18 +1642,26 @@ function startSortTimer(seconds){
 async function submitSortAnswer(){
   if(sortSubmitted) return;
   if(isPlayerEliminated()){ toast('You have been voted out — watch only!',true); return; }
+  const sortChallenge = gameState.sortChallenge;
+  if(!sortChallenge){ toast('No active challenge',true); return; }
+  if(sortOrder.length === 0){
+    // Safety: re-init from shuffled if somehow empty
+    sortOrder = [...sortChallenge.shuffledItems];
+  }
   sortSubmitted = true;
   if(sortTimerInterval){ clearInterval(sortTimerInterval); sortTimerInterval=null; }
-  const sortTimeTaken = sc ? Math.min((Date.now()-sc.startedAt)/1000, sc.timeLimit) : 45;
+  const sortTimeTaken = Math.min((Date.now()-sortChallenge.startedAt)/1000, sortChallenge.timeLimit);
+  // Update submit button to show locked
+  const btn = document.getElementById('sortSubmitBtn');
+  if(btn){ btn.textContent='🔒 Locked In'; btn.disabled=true; btn.style.opacity='0.6'; }
   try{
     const res = await fetch(API+'/sortit/answer',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({playerName:myName, orderedItems:sortOrder, timeTaken:sortTimeTaken})});
     const data = await res.json();
-    console.log('Sort answer result:', data); // debug
+    if(data.error){ console.error('Sort answer error:', data.error); }
   }catch(e){ console.error('Sort submit error:', e); }
   document.getElementById('sortSubmitArea').style.display='none';
   document.getElementById('sortResultMsg').style.display='block';
-  document.getElementById('sortList').classList.add('sort-submitted');
 }
 
 // ── DRAG AND DROP (mouse + touch) ──
@@ -1836,20 +1844,39 @@ function renderSortHostPanel(sc){
 
   const answered=Object.keys(sc.playerAnswers||{}).length;
   const alive=gameState.players.filter(p=>!p.eliminated).length;
+  const correctDisplay = sc.displayItems || sc.correctOrder.map(i=>i.replace(/\s*\([^)]+\)\s*$/,'').trim());
+
   document.getElementById('sortHostInfo').innerHTML=`
     <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${answered}/${alive} players submitted</div>
-    <div style="font-weight:700;font-size:13px;margin-bottom:6px">${sc.categoryLabel}</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">${sc.prompt}</div>
-    ${sc.revealed?`<div style="margin-top:8px"><div style="font-size:11px;color:var(--immune);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Correct Order</div>
-    ${sc.correctOrder.map((item,i)=>`<div style="font-size:12px;padding:3px 0;color:var(--text)">${i+1}. ${item}</div>`).join('')}</div>`:'<div style="font-size:12px;color:var(--muted);font-style:italic">Correct order hidden until reveal</div>'}`;
+    <div style="font-weight:700;font-size:13px;margin-bottom:4px">${sc.categoryLabel}</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${sc.prompt}</div>
+    <div style="margin-bottom:8px">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Correct Order (host only)</div>
+      ${sc.correctOrder.map((item,i)=>`<div style="font-size:12px;padding:2px 0;color:var(--immune)">✓ ${i+1}. ${item}</div>`).join('')}
+    </div>`;
 
+  // Show per-player answers with scoring
   const scores=sc.scores||{};
-  const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-  document.getElementById('sortTallyHost').innerHTML=sorted.length?`
-    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Scores</div>
-    ${sorted.map(([name,pts])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px">
-      <span style="font-weight:700">${name}</span><span style="color:var(--fire2);font-weight:700">${pts} pts</span>
-    </div>`).join('')}`:'';
+  const answers=sc.playerAnswers||{};
+  const players=gameState.players.filter(p=>!p.eliminated);
+  const sorted=players.map(p=>({name:p.name,pts:scores[p.name]||0,ans:answers[p.name]||[]}))
+    .sort((a,b)=>b.pts-a.pts);
+
+  document.getElementById('sortTallyHost').innerHTML=`
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Player Answers</div>
+    ${sorted.map(({name,pts,ans})=>{
+      const correct=ans.filter((item,i)=>item.trim()===correctDisplay[i]?.trim()).length;
+      return `<div style="padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <span style="font-weight:700;font-size:13px">${name}</span>
+          <span style="color:var(--fire2);font-weight:700">${ans.length?pts+' pts ('+correct+'/4)':'not submitted'}</span>
+        </div>
+        ${ans.length?ans.map((item,i)=>{
+          const ok=item.trim()===correctDisplay[i]?.trim();
+          return `<div style="font-size:11px;color:${ok?'var(--immune)':'var(--elim)'};">${ok?'✓':'✗'} ${i+1}. ${item||'—'}</div>`;
+        }).join(''):'<div style="font-size:11px;color:var(--muted)">Waiting...</div>'}
+      </div>`;
+    }).join('')}`;
 }
 
 // ── TRIVIA JS ──
