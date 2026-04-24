@@ -329,6 +329,12 @@ select.input{cursor:pointer}
 
   <!-- VOTING TAB -->
   <div class="section" id="sect-voting">
+    <div id="youAreBannerVoting" style="display:none;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.2);border-radius:8px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:12px">
+      <div id="youAreAvatarVoting" style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Cinzel',serif;font-size:11px;flex-shrink:0"></div>
+      <span style="color:var(--muted)">Playing as</span>
+      <span id="youAreNameVoting" style="font-weight:700;color:var(--fire2)"></span>
+      <span id="youAreImmuneVoting" style="margin-left:auto"></span>
+    </div>
     <div id="phaseBannerVoting" class="phase-banner phase-active">⏳ No active vote</div>
     <!-- HOST FLOW GUIDE -->
     <div id="hostFlowGuide" style="display:none;margin-bottom:12px">
@@ -642,37 +648,50 @@ select.input{cursor:pointer}
 </div>
 
 <!-- GAME OVER SCREEN -->
-<div class="modal-overlay" id="gameOverScreen">
-  <div class="modal-sheet" style="border-radius:20px;max-height:92vh">
-    <div style="text-align:center;padding:10px 0 20px">
-      <div style="font-size:56px;margin-bottom:8px">🏆</div>
-      <div style="font-family:'Cinzel',serif;font-size:28px;font-weight:900;background:linear-gradient(90deg,var(--fire),var(--fire2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px">Game Over!</div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:20px" id="gameOverSubtitle">Thanks for playing</div>
+<!-- WINNER CEREMONY SCREEN -->
+<div class="modal-overlay" id="gameOverScreen" style="align-items:center;padding:16px">
+  <div style="background:var(--dark);border-radius:20px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;border:1px solid rgba(255,179,71,0.3)">
 
-      <!-- Winner -->
-      <div id="winnerDisplay" style="background:rgba(255,179,71,0.12);border:1px solid rgba(255,179,71,0.4);border-radius:14px;padding:16px;margin-bottom:16px;display:none">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">🥇 Sole Survivor</div>
-        <div id="winnerName" style="font-family:'Cinzel',serif;font-size:24px;font-weight:900;color:var(--fire2)"></div>
-        <div id="winnerTeam" style="font-size:12px;color:var(--muted);margin-top:4px"></div>
-      </div>
+    <!-- Confetti canvas -->
+    <canvas id="confettiCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:600;display:none"></canvas>
 
-      <!-- Elim History -->
-      <div style="text-align:left;margin-bottom:20px">
-        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Voted Out — In Order</div>
-        <div id="elimHistoryList"></div>
-      </div>
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1a1205,#0A0F1A);padding:28px 20px 20px;text-align:center;border-radius:20px 20px 0 0;position:relative">
+      <div id="winnerTorches" style="font-size:40px;margin-bottom:8px;letter-spacing:8px">🔥🏆🔥</div>
+      <div style="font-family:'Cinzel',serif;font-size:11px;letter-spacing:4px;color:var(--muted);margin-bottom:6px;text-transform:uppercase">The Tribe Has Spoken</div>
+      <div id="gameOverTitle" style="font-family:'Cinzel',serif;font-size:32px;font-weight:900;background:linear-gradient(90deg,var(--fire),var(--fire2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px">Sole Survivor</div>
+      <div id="gameOverSubtitle" style="font-size:13px;color:var(--muted)">Game Over</div>
+    </div>
 
-      <!-- Host only: new game button -->
+    <!-- Winner card -->
+    <div id="winnerDisplay" style="display:none;margin:16px;background:linear-gradient(135deg,rgba(255,179,71,0.15),rgba(255,107,53,0.08));border:1px solid rgba(255,179,71,0.4);border-radius:16px;padding:20px;text-align:center">
+      <div id="winnerAvatar" style="width:72px;height:72px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Cinzel',serif;font-size:26px;border:3px solid var(--fire2)"></div>
+      <div id="winnerName" style="font-family:'Cinzel',serif;font-size:26px;font-weight:900;color:var(--fire2);margin-bottom:4px"></div>
+      <div id="winnerTeam" style="font-size:12px;color:var(--muted)"></div>
+      <div style="margin-top:12px;font-size:12px;color:var(--muted);letter-spacing:2px;text-transform:uppercase">🥇 Sole Survivor</div>
+    </div>
+
+    <!-- Game stats -->
+    <div style="margin:0 16px 16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px" id="gameStatsGrid"></div>
+
+      <!-- Elim history -->
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Voted Out — In Order</div>
+      <div id="elimHistoryList"></div>
+    </div>
+
+    <!-- Buttons -->
+    <div style="padding:0 16px 24px;display:flex;flex-direction:column;gap:8px">
       <div id="newGameBtns" style="display:none">
-        <button class="btn btn-fire" onclick="hostNewGame()" style="margin-bottom:10px">🔥 Start New Game</button>
-        <button class="btn btn-ghost" onclick="document.getElementById('gameOverScreen').classList.remove('active')">View Tribe</button>
+        <button class="btn btn-fire" onclick="hostNewGame()" style="margin-bottom:8px">🔥 Start New Game</button>
       </div>
-      <div id="playerGameOverMsg" style="display:none;font-size:13px;color:var(--muted)">Ask the host to start a new game!</div>
+      <button class="btn btn-ghost" onclick="closeGameOver()">Close</button>
+      <div id="playerGameOverMsg" style="display:none;font-size:12px;color:var(--muted);text-align:center;margin-top:4px">Ask the host to start a new game!</div>
     </div>
   </div>
 </div>
 
-<!-- ELIMINATION MODAL -->
+<!-- ELIMINATION MODAL --><!-- ELIMINATION MODAL -->
 <div class="modal-overlay" id="elimModal">
   <div class="modal-sheet">
     <div class="elim-reveal">
@@ -1155,8 +1174,23 @@ function renderAll(){ renderHeader(); renderYouAreBanner(); renderTeamReassign()
 function renderHeader(){
   document.getElementById('gameNameDisplay').textContent=gameState.gameName;
   document.getElementById('roundBadge').textContent='Round '+gameState.round;
-  const labels={active:'Players Ready',challenge:'Challenge Underway',voting:'Tribal Council',reveal:'Votes Cast',done:'Game Over'};
-  document.getElementById('statusText').textContent=(labels[gameState.phase]||gameState.phase)+' · '+gameState.players.filter(p=>!p.eliminated).length+' survivors';
+  const alive=gameState.players.filter(p=>!p.eliminated).length;
+  const labels={
+    active:'Waiting for Challenge',
+    challenge:'Challenge Underway',
+    voting:'⚡ Voting Open',
+    reveal:'Votes Counted',
+    done:'Game Over'
+  };
+  let statusExtra='';
+  if(gameState.phase==='voting'){
+    const votesCast=Object.keys(gameState.votes||{}).length;
+    const pool=gameState.votingPool.length||alive;
+    statusExtra=` · ${votesCast}/${pool} votes`;
+  } else if(gameState.immuneNames?.length>0&&gameState.phase!=='active'){
+    statusExtra=` · 🛡️ ${gameState.immuneNames.join(', ')}`;
+  }
+  document.getElementById('statusText').textContent=(labels[gameState.phase]||gameState.phase)+' · '+alive+' survivors'+statusExtra;
 }
 
 function phaseBanner(el,phase){
@@ -1741,7 +1775,7 @@ async function submitSortAnswer(){
   const sortTimeTaken = Math.min((Date.now()-sortChallenge.startedAt)/1000, sortChallenge.timeLimit);
   // Update submit button to show locked
   const btn = document.getElementById('sortSubmitBtn');
-  if(btn){ btn.textContent='🔒 Locked In'; btn.disabled=true; btn.style.opacity='0.6'; }
+  if(btn){ btn.textContent='🔒 Locked In'; btn.disabled=true; btn.style.background='rgba(255,255,255,0.1)'; btn.style.color='var(--muted)'; }
   try{
     const res = await fetch(API+'/sortit/answer',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({playerName:myName, orderedItems:sortOrder, timeTaken:sortTimeTaken})});
@@ -2220,43 +2254,121 @@ async function hostNewGame(){
   toast('Game reset! Set up a new game.');
 }
 
+
+function closeGameOver(){
+  document.getElementById('gameOverScreen').classList.remove('active');
+  const canvas = document.getElementById('confettiCanvas');
+  if(canvas) canvas.style.display='none';
+}
+
 function renderGameOver(){
   if(gameState.phase!=='done') return;
   const screen=document.getElementById('gameOverScreen');
-  if(screen.classList.contains('active')) return; // already showing
 
-  // Find winner (last survivor)
   const survivors=gameState.players.filter(p=>!p.eliminated);
   const winner=survivors.length===1?survivors[0]:null;
-
-  if(winner){
-    document.getElementById('winnerDisplay').style.display='block';
-    document.getElementById('winnerName').textContent=winner.name;
-    document.getElementById('winnerTeam').textContent=winner.team?winner.team:'';
-    document.getElementById('gameOverSubtitle').textContent=gameState.gameName;
-  } else {
-    document.getElementById('winnerDisplay').style.display='none';
-    document.getElementById('gameOverSubtitle').textContent=gameState.gameName+' — Game ended';
-  }
-
-  // Elim history
   const hist=gameState.elimHistory||[];
+  const totalRounds=gameState.round;
+
+  // Winner display
+  const winnerEl=document.getElementById('winnerDisplay');
+  if(winner){
+    winnerEl.style.display='block';
+    const pi=gameState.players.indexOf(winner);
+    const ti=teamIndexOf(winner.team);
+    const bg=ti>=0?teamColor(ti).bg:avatarBg(pi);
+    const av=document.getElementById('winnerAvatar');
+    av.style.background=bg; av.style.color='#0A0F1A';
+    av.textContent=initials(winner.name);
+    document.getElementById('winnerName').textContent=winner.name;
+    document.getElementById('winnerTeam').textContent=winner.team||'';
+    document.getElementById('gameOverTitle').textContent='Sole Survivor!';
+  } else {
+    winnerEl.style.display='none';
+    document.getElementById('gameOverTitle').textContent='Game Over!';
+  }
+  document.getElementById('gameOverSubtitle').textContent=gameState.gameName;
+
+  // Stats grid
+  document.getElementById('gameStatsGrid').innerHTML=[
+    {icon:'🏝️', label:'Rounds Played', val:totalRounds},
+    {icon:'👥', label:'Players Started', val:gameState.players.length},
+    {icon:'🗳️', label:'Votes Cast', val:hist.reduce((a,e)=>a+(e.votes||0),0)},
+  ].map(s=>`<div style="background:var(--card2);border-radius:10px;padding:10px;text-align:center">
+    <div style="font-size:22px;margin-bottom:4px">${s.icon}</div>
+    <div style="font-family:'Cinzel',serif;font-size:18px;font-weight:700;color:var(--fire2)">${s.val}</div>
+    <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${s.label}</div>
+  </div>`).join('');
+
+  // Elim history - reversed so most recent is first
   document.getElementById('elimHistoryList').innerHTML=hist.length?
-    hist.map((e,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px">
-      <div>
-        <span style="font-size:12px;color:var(--muted);margin-right:8px">Rd ${e.round}</span>
-        <span style="font-weight:700">${e.name}</span>
-        ${e.team?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${e.team}</span>`:''}
-      </div>
-      <span style="font-size:12px;color:var(--elim)">${e.votes} vote${e.votes!==1?'s':''}</span>
-    </div>`).join(''):
+    [...hist].reverse().map((e,i)=>{
+      const ep=gameState.players.find(p=>p.name===e.name);
+      const pi=gameState.players.indexOf(ep);
+      const ti=teamIndexOf(e.team);
+      const bg=ti>=0?teamColor(ti).bg:avatarBg(pi>=0?pi:i);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card2);border-radius:10px;margin-bottom:6px;border-left:3px solid ${bg}">
+        <div style="width:32px;height:32px;border-radius:50%;background:${bg};color:#0A0F1A;display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Cinzel',serif;font-size:12px;flex-shrink:0">${initials(e.name)}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px">${e.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${e.team?e.team+' · ':''}Round ${e.round}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:12px;color:var(--elim);font-weight:700">${e.votes} vote${e.votes!==1?'s':''}</div>
+          ${e.revealNum===2?'<div style="font-size:10px;color:var(--muted)">2nd out</div>':''}
+        </div>
+      </div>`;
+    }).join(''):
     '<div style="font-size:13px;color:var(--muted);text-align:center;padding:10px">No eliminations recorded</div>';
 
-  // Show/hide host controls
   document.getElementById('newGameBtns').style.display=isHost?'block':'none';
   document.getElementById('playerGameOverMsg').style.display=isHost?'none':'block';
 
   screen.classList.add('active');
+
+  // Launch confetti for winner
+  if(winner) launchConfetti();
+}
+
+function launchConfetti(){
+  const canvas=document.getElementById('confettiCanvas');
+  if(!canvas) return;
+  canvas.width=window.innerWidth;
+  canvas.height=window.innerHeight;
+  canvas.style.display='block';
+  const ctx=canvas.getContext('2d');
+  const pieces=[];
+  const colors=['#FF6B35','#FFB347','#22AA66','#4A90D9','#FFD700','#FF69B4'];
+  for(let i=0;i<150;i++){
+    pieces.push({
+      x:Math.random()*canvas.width, y:-10,
+      w:8+Math.random()*8, h:4+Math.random()*4,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      rot:Math.random()*360, rotSpeed:4-Math.random()*8,
+      vx:-2+Math.random()*4, vy:3+Math.random()*4,
+      opacity:1
+    });
+  }
+  let frame=0;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    pieces.forEach(p=>{
+      ctx.save();
+      ctx.globalAlpha=p.opacity;
+      ctx.translate(p.x,p.y);
+      ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle=p.color;
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+      p.x+=p.vx; p.y+=p.vy;
+      p.rot+=p.rotSpeed;
+      if(frame>120) p.opacity-=0.01;
+    });
+    frame++;
+    if(frame<200) requestAnimationFrame(draw);
+    else canvas.style.display='none';
+  }
+  draw();
 }
 
 
@@ -2307,6 +2419,17 @@ function renderYouAreBanner(){
   avatarEl.textContent=initials(myName);
   if(me.team) teamEl.innerHTML=`<span style="font-size:11px;padding:3px 10px;border-radius:20px;background:${bg}33;color:${bg};font-weight:700">${me.team}</span>`;
   else teamEl.textContent='';
+
+  // Also update voting tab banner
+  if(bannerV){
+    bannerV.style.display='flex';
+    const avV=document.getElementById('youAreAvatarVoting');
+    if(avV){ avV.style.background=bg; avV.style.color='#0A0F1A'; avV.textContent=initials(myName); }
+    const nameV=document.getElementById('youAreNameVoting');
+    if(nameV) nameV.textContent=myName;
+    const immV=document.getElementById('youAreImmuneVoting');
+    if(immV) immV.innerHTML=me.immune?'<span class="immune-badge">🛡️ Immune</span>':'';
+  }
 }
 
 // ── RENDER TEAM REASSIGN (HOST) ──
@@ -2348,44 +2471,7 @@ async function hostNewGame(){
   toast('Game reset! Set up a new game.');
 }
 
-function renderGameOver(){
-  if(gameState.phase!=='done') return;
-  const screen=document.getElementById('gameOverScreen');
-  if(screen.classList.contains('active')) return; // already showing
 
-  // Find winner (last survivor)
-  const survivors=gameState.players.filter(p=>!p.eliminated);
-  const winner=survivors.length===1?survivors[0]:null;
-
-  if(winner){
-    document.getElementById('winnerDisplay').style.display='block';
-    document.getElementById('winnerName').textContent=winner.name;
-    document.getElementById('winnerTeam').textContent=winner.team?winner.team:'';
-    document.getElementById('gameOverSubtitle').textContent=gameState.gameName;
-  } else {
-    document.getElementById('winnerDisplay').style.display='none';
-    document.getElementById('gameOverSubtitle').textContent=gameState.gameName+' — Game ended';
-  }
-
-  // Elim history
-  const hist=gameState.elimHistory||[];
-  document.getElementById('elimHistoryList').innerHTML=hist.length?
-    hist.map((e,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px">
-      <div>
-        <span style="font-size:12px;color:var(--muted);margin-right:8px">Rd ${e.round}</span>
-        <span style="font-weight:700">${e.name}</span>
-        ${e.team?`<span style="font-size:11px;color:var(--muted);margin-left:6px">${e.team}</span>`:''}
-      </div>
-      <span style="font-size:12px;color:var(--elim)">${e.votes} vote${e.votes!==1?'s':''}</span>
-    </div>`).join(''):
-    '<div style="font-size:13px;color:var(--muted);text-align:center;padding:10px">No eliminations recorded</div>';
-
-  // Show/hide host controls
-  document.getElementById('newGameBtns').style.display=isHost?'block':'none';
-  document.getElementById('playerGameOverMsg').style.display=isHost?'none':'block';
-
-  screen.classList.add('active');
-}
 
 // ── HOST FLOW GUIDE ──
 function renderHostFlowGuide(){
@@ -2461,8 +2547,12 @@ async function hostReassignTeam(playerName, newTeam){
 // ── YOU ARE BANNER ──
 function renderYouAreBanner(){
   const banner=document.getElementById('youAreBanner');
-  if(!banner) return;
-  if(!myName||myName==='__host__'||isHost){ banner.style.display='none'; return; }
+  const bannerV=document.getElementById('youAreBannerVoting');
+  if(!myName||myName==='__host__'||isHost){
+    if(banner) banner.style.display='none';
+    if(bannerV) bannerV.style.display='none';
+    return;
+  }
   const me=gameState.players.find(p=>p.name===myName);
   if(!me){ banner.style.display='none'; return; }
   banner.style.display='flex';
@@ -2475,6 +2565,17 @@ function renderYouAreBanner(){
   const teamEl=document.getElementById('youAreTeam');
   if(me.team) teamEl.innerHTML=`<span style="font-size:11px;padding:3px 10px;border-radius:20px;background:${bg}33;color:${bg};font-weight:700">${me.team}</span>`;
   else teamEl.textContent='';
+
+  // Also update voting tab banner
+  if(bannerV){
+    bannerV.style.display='flex';
+    const avV=document.getElementById('youAreAvatarVoting');
+    if(avV){ avV.style.background=bg; avV.style.color='#0A0F1A'; avV.textContent=initials(myName); }
+    const nameV=document.getElementById('youAreNameVoting');
+    if(nameV) nameV.textContent=myName;
+    const immV=document.getElementById('youAreImmuneVoting');
+    if(immV) immV.innerHTML=me.immune?'<span class="immune-badge">🛡️ Immune</span>':'';
+  }
 }
 
 // ── TEAM REASSIGN PANEL (HOST) ──
