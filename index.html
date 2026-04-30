@@ -244,6 +244,7 @@ select.input{cursor:pointer}
         <option value="2" selected>2 Teams</option>
         <option value="3">3 Teams</option>
         <option value="4">4 Teams</option>
+        <option value="5">5 Teams</option>
       </select>
       <div id="teamNamesSection"><label>Team Names</label><div id="teamNameInputs"></div></div>
       <div class="divider"></div>
@@ -344,21 +345,49 @@ select.input{cursor:pointer}
     <div id="hostVotingPanel" style="display:none">
       <div class="host-panel">
         <h4>🎬 Host Controls — Voting</h4>
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;margin-bottom:8px;background:rgba(204,34,0,0.08);border-radius:8px;padding:8px 10px">
-          <span style="font-size:12px;color:var(--muted);text-transform:none;letter-spacing:0">⚡ Double Elimination</span>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-            <input type="checkbox" id="doubleElimToggle" onchange="document.getElementById('doubleElimLabel').textContent=this.checked?'ON':'Off'" style="width:16px;height:16px;cursor:pointer;accent-color:var(--elim)">
-            <span id="doubleElimLabel" style="font-size:12px;font-weight:700;color:var(--fire2)">Off</span>
-          </label>
+
+        <!-- Voting mode toggles -->
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="flex:1;background:rgba(204,34,0,0.08);border-radius:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:11px;color:var(--muted)">⚡ Double Elim</span>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" id="doubleElimToggle" onchange="document.getElementById('doubleElimLabel').textContent=this.checked?'ON':'Off'" style="width:14px;height:14px;cursor:pointer;accent-color:var(--elim)">
+              <span id="doubleElimLabel" style="font-size:11px;font-weight:700;color:var(--fire2)">Off</span>
+            </label>
+          </div>
+          <div id="multiTeamToggleWrap" style="flex:1;background:rgba(255,107,53,0.08);border-radius:8px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;display:none">
+            <span style="font-size:11px;color:var(--muted)">👥 Multi-Team</span>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+              <input type="checkbox" id="multiTeamToggle" onchange="document.getElementById('multiTeamLabel').textContent=this.checked?'ON':'Off';renderMultiTeamVotingUI()" style="width:14px;height:14px;cursor:pointer;accent-color:var(--fire)">
+              <span id="multiTeamLabel" style="font-size:11px;font-weight:700;color:var(--fire2)">Off</span>
+            </label>
+          </div>
         </div>
+
+        <!-- Losing teams selector (shown when multi-team is on) -->
+        <div id="losingTeamsSelector" style="display:none;margin-bottom:10px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Select losing teams (will vote simultaneously):</div>
+          <div id="losingTeamCheckboxes"></div>
+        </div>
+
         <div class="flex-row" style="margin-bottom:8px">
           <button class="btn btn-outline btn-sm" onclick="hostOpenVoting()">Open Voting</button>
           <button class="btn btn-outline btn-sm" onclick="hostCloseVoting()">Close Voting</button>
         </div>
-        <div class="flex-row" style="margin-bottom:8px">
+
+        <!-- Standard reveal (single/double elim) -->
+        <div id="standardRevealPanel" class="flex-row" style="margin-bottom:8px">
           <button class="btn btn-danger btn-sm" id="revealBtn" onclick="hostRevealElim()">🕯️ Reveal #1</button>
           <button class="btn btn-ghost btn-sm" onclick="hostNextRound()">Next Round →</button>
         </div>
+
+        <!-- Multi-team reveal panel -->
+        <div id="multiTeamRevealPanel" style="display:none;margin-bottom:8px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Reveal one team at a time:</div>
+          <div id="teamRevealButtons"></div>
+          <button class="btn btn-ghost btn-sm" onclick="hostNextRound()" style="width:100%;margin-top:6px">Next Round →</button>
+        </div>
+
         <div style="margin-top:4px">
           <button class="btn btn-ghost btn-sm" onclick="hostEndGame()" style="width:100%;color:var(--elim);border:1px solid rgba(204,34,0,0.3)">🏁 End Game Manually</button>
         </div>
@@ -720,6 +749,7 @@ const POLL_INTERVAL = 2500;
 const TEAM_COLORS = [
   {bg:'#3B82F6',text:'#DBEAFE'},{bg:'#EF4444',text:'#FEE2E2'},
   {bg:'#22C55E',text:'#DCFCE7'},{bg:'#F59E0B',text:'#FEF3C7'},
+  {bg:'#A855F7',text:'#F3E8FF'},
 ];
 const AVATAR_PALETTE=['#FF6B35','#FFB347','#22AA66','#4A90D9','#9B59B6','#E74C3C','#1ABC9C','#F39C12','#2ECC71','#E67E22','#3498DB','#E91E63'];
 
@@ -729,7 +759,7 @@ let rosterNames=[], teamNames=['Tribe Koa','Tribe Hale'];
 const HOST_PASS_DEFAULT='ticcio';
 
 function defaultState(){
-  return {gameName:'Ticcio Survivor',hostPass:'ticcio',phase:'active',round:1,eliminationMode:'individual',teams:[],players:[],votes:{},votingPool:[],immuneNames:[],currentChallenge:null,pictureChallenge:null,triviaChallenge:null,revealed:false,elimHistory:[],updatedAt:0};
+  return {gameName:'Ticcio Survivor',hostPass:'ticcio',phase:'active',round:1,eliminationMode:'individual',teams:[],players:[],votes:{},teamVotes:{},teamTallies:{},votingPool:[],votingTeams:[],revealedTeams:[],multiTeamVoting:false,immuneNames:[],currentChallenge:null,pictureChallenge:null,triviaChallenge:null,sortChallenge:null,nttChallenge:null,revealed:false,doubleElim:false,revealCount:0,elimHistory:[],updatedAt:0};
 }
 let gameState=defaultState();
 
@@ -791,7 +821,7 @@ async function loadCategories(){
 
 function rebuildTeams(){
   const n=parseInt(document.getElementById('numTeams').value);
-  const defaults=['Tribe Koa','Tribe Hale','Tribe Nalu','Tribe Mana'];
+  const defaults=['Tribe Koa','Tribe Hale','Tribe Nalu','Tribe Mana','Tribe Kai'];
   while(teamNames.length<n) teamNames.push(defaults[teamNames.length]||'Team '+(teamNames.length+1));
   teamNames=teamNames.slice(0,n);
   const sec=document.getElementById('teamNamesSection');
@@ -935,15 +965,23 @@ function renderHostScoreTable(){
 // ── VOTING CONTROLS ──
 async function hostOpenVoting(){
   const doubleElim = document.getElementById('doubleElimToggle')?.checked || false;
-  await api('/voting/open',{doubleElim});
+  const multiTeamToggle = document.getElementById('multiTeamToggle');
+  const multiTeam = multiTeamToggle?.checked || false;
+  let losingTeams = [];
+  if(multiTeam){
+    document.querySelectorAll('.losing-team-cb:checked').forEach(cb => losingTeams.push(cb.value));
+    if(!losingTeams.length){ toast('Select at least one losing team',true); return; }
+  }
+  await api('/voting/open',{doubleElim, multiTeam, losingTeams});
   await loadState(); renderAll();
-  toast(doubleElim ? 'Voting open — DOUBLE ELIMINATION! ⚡' : 'Voting is open!');
+  if(multiTeam) toast('Multi-team voting open — '+losingTeams.join(', ')+' voting! 👥');
+  else toast(doubleElim ? 'Voting open — DOUBLE ELIMINATION! ⚡' : 'Voting is open!');
 }
 async function hostCloseVoting(){
   await api('/voting/close',{}); await loadState(); renderAll(); toast('Voting closed — reveal when ready');
 }
-async function hostRevealElim(){
-  const res=await api('/voting/reveal',{});
+async function hostRevealElim(teamName){
+  const res = await api('/voting/reveal', teamName ? {teamName} : {});
   if(res.eliminated){
     document.getElementById('elimName').textContent=res.eliminated.name;
     document.getElementById('elimVoteCount').textContent=res.eliminated.votes+' vote'+(res.eliminated.votes!==1?'s':'');
@@ -951,7 +989,7 @@ async function hostRevealElim(){
     document.getElementById('elimModal').classList.add('active');
   }
   await loadState();
-  // Update reveal button for double elim
+  // Update reveal button for double elim (non-multi-team mode)
   const revealBtn = document.getElementById('revealBtn');
   if(revealBtn){
     if(gameState.doubleElim && gameState.revealCount===1){
@@ -1288,6 +1326,7 @@ function renderVotingTab(){
       mvs.style.display='none';
       // In team mode: only show own team as targets
       // In individual mode: show all alive except self, immune can still be shown but not voted for
+      const isMultiTeamVoting = gameState.multiTeamVoting && gameState.votingTeams?.length > 0;
       const voteTargets = teamsActive
         ? alive.filter(p=>p.team===myPlayer?.team&&p.name!==myName)
         : alive.filter(p=>p.name!==myName);
@@ -1318,20 +1357,54 @@ function renderVotingTab(){
   }
 
   if(isHost&&(gameState.phase==='voting'||gameState.phase==='reveal')){
-    const tally={};
-    alive.forEach(p=>tally[p.name]=0);
-    Object.values(gameState.votes).forEach(t=>{if(tally[t]!==undefined)tally[t]++;});
-    const sorted=Object.entries(tally).sort((a,b)=>b[1]-a[1]);
     document.getElementById('liveVoteTally').style.display='block';
-    const pool=gameState.votingPool.length||alive.length-1;
-    document.getElementById('tallyList').innerHTML=sorted.map(([name,count])=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
-        <span style="font-weight:700">${name}</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="background:rgba(255,107,53,0.3);height:5px;border-radius:3px;width:${Math.max(count*24,4)}px"></div>
-          <span style="color:var(--fire2);font-weight:700">${count}</span>
-        </div>
-      </div>`).join('')+`<div style="font-size:11px;color:var(--muted);margin-top:8px">${Object.keys(gameState.votes).length} of ${pool} votes cast</div>`;
+
+    if(gameState.multiTeamVoting && gameState.votingTeams?.length){
+      // Multi-team: show tally per team
+      const votingTeams = gameState.votingTeams;
+      const teamVotes = gameState.teamVotes || {};
+      const teamTallies = gameState.teamTallies || {};
+      document.getElementById('tallyList').innerHTML = votingTeams.map(team=>{
+        const tc = teamColor(teamIndexOf(team));
+        const votes = teamVotes[team] || {};
+        const tally = teamTallies[team] || {};
+        const teamPlayers = gameState.players.filter(p=>!p.eliminated&&p.team===team);
+        const votesCast = Object.keys(votes).length;
+        const isRevealed = (gameState.revealedTeams||[]).includes(team);
+        return `<div style="margin-bottom:12px;padding:10px;background:var(--card2);border-radius:10px;border-left:3px solid ${tc.bg}">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <div style="width:10px;height:10px;border-radius:50%;background:${tc.bg}"></div>
+            <span style="font-weight:700;font-size:13px">${team}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:auto">${votesCast}/${teamPlayers.length} votes${isRevealed?' · ✓ Revealed':''}</span>
+          </div>
+          ${teamPlayers.map(p=>{
+            const voteCount = tally[p.name] || (gameState.phase==='voting'?Object.values(votes).filter(v=>v===p.name).length:0);
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12px">
+              <span>${p.name}</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <div style="background:rgba(255,107,53,0.25);height:4px;border-radius:2px;width:${Math.max(voteCount*20,2)}px"></div>
+                <span style="color:var(--fire2);font-weight:700;min-width:12px">${voteCount}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('');
+    } else {
+      // Standard single tally
+      const tally={};
+      alive.forEach(p=>tally[p.name]=0);
+      Object.values(gameState.votes).forEach(t=>{if(tally[t]!==undefined)tally[t]++;});
+      const sorted=Object.entries(tally).sort((a,b)=>b[1]-a[1]);
+      const pool=gameState.votingPool.length||alive.length-1;
+      document.getElementById('tallyList').innerHTML=sorted.map(([name,count])=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+          <span style="font-weight:700">${name}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="background:rgba(255,107,53,0.3);height:5px;border-radius:3px;width:${Math.max(count*24,4)}px"></div>
+            <span style="color:var(--fire2);font-weight:700">${count}</span>
+          </div>
+        </div>`).join('')+`<div style="font-size:11px;color:var(--muted);margin-top:8px">${Object.keys(gameState.votes).length} of ${pool} votes cast</div>`;
+    }
   } else if(isHost) document.getElementById('liveVoteTally').style.display='none';
 }
 
@@ -1437,6 +1510,7 @@ function renderHostPanels(){
   document.getElementById('hostVotingPanel').style.display=isHost?'block':'none';
   document.getElementById('playerVotingPanel').style.display=isHost?'none':'block';
   document.getElementById('hostGamesPanel').style.display=isHost?'block':'none';
+  if(isHost) renderMultiTeamVotingUI();
   // Show immunity form whenever a challenge is active or just ended
   // (phase stays 'challenge' until host opens voting)
   const anyChallenge = gameState.currentChallenge;
@@ -2379,6 +2453,75 @@ async function hostMergeTribes(){
   await api('/merge', {tribeName: name});
   await loadState(); renderAll();
   toast('⚔️ Tribes merged into '+name+'!');
+}
+
+// ── MULTI-TEAM VOTING UI ──
+function renderMultiTeamVotingUI(){
+  const teamsActive = gameState.teams.length > 1;
+  const multiToggleWrap = document.getElementById('multiTeamToggleWrap');
+  const losingTeamsDiv = document.getElementById('losingTeamsSelector');
+  const losingCheckboxes = document.getElementById('losingTeamCheckboxes');
+  const standardReveal = document.getElementById('standardRevealPanel');
+  const multiReveal = document.getElementById('multiTeamRevealPanel');
+  const multiToggle = document.getElementById('multiTeamToggle');
+
+  if(!teamsActive || gameState.teams.length < 3){
+    if(multiToggleWrap) multiToggleWrap.style.display='none';
+    if(losingTeamsDiv) losingTeamsDiv.style.display='none';
+    if(standardReveal) standardReveal.style.display='flex';
+    if(multiReveal) multiReveal.style.display='none';
+    return;
+  }
+
+  // Show multi-team toggle when 3+ teams
+  if(multiToggleWrap) multiToggleWrap.style.display='flex';
+
+  const isMulti = multiToggle?.checked || gameState.multiTeamVoting;
+
+  // Show losing team checkboxes when toggled on and not yet voting
+  if(isMulti && gameState.phase === 'active'){
+    losingTeamsDiv.style.display='block';
+    const immuneTeam = gameState.players.find(p=>p.immune)?.team;
+    losingCheckboxes.innerHTML = gameState.teams.map(t=>{
+      const tc = teamColor(teamIndexOf(t));
+      const isImmune = t === immuneTeam;
+      return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;${isImmune?'opacity:.4':''}">
+        <input type="checkbox" class="losing-team-cb" value="${t}" ${isImmune?'disabled':''} style="width:16px;height:16px;accent-color:${tc.bg}">
+        <div style="width:12px;height:12px;border-radius:50%;background:${tc.bg}"></div>
+        <span style="font-size:13px;font-weight:700">${t}</span>
+        ${isImmune?'<span class="immune-badge">IMMUNE</span>':''}
+      </label>`;
+    }).join('');
+  } else {
+    losingTeamsDiv.style.display='none';
+  }
+
+  // During reveal phase — show per-team reveal buttons or standard
+  if(gameState.phase === 'reveal'){
+    if(gameState.multiTeamVoting && gameState.votingTeams?.length){
+      standardReveal.style.display='none';
+      multiReveal.style.display='block';
+      const revealed = gameState.revealedTeams || [];
+      const remaining = gameState.votingTeams.filter(t=>!revealed.includes(t));
+      document.getElementById('teamRevealButtons').innerHTML = gameState.votingTeams.map(t=>{
+        const tc = teamColor(teamIndexOf(t));
+        const done = revealed.includes(t);
+        return `<button class="btn btn-sm" onclick="hostRevealElim('${t}')" ${done?'disabled':''}
+          style="width:100%;margin-bottom:6px;background:${done?'rgba(255,255,255,0.06)':'linear-gradient(135deg,#8B0000,var(--elim))'};color:${done?'var(--muted)':'white'};border:1px solid ${done?'rgba(255,255,255,0.1)':tc.bg};border-radius:10px;padding:10px;font-family:Nunito,sans-serif;font-weight:700;font-size:13px;cursor:${done?'not-allowed':'pointer'}">
+          <div style="display:flex;align-items:center;gap:8px;justify-content:center">
+            <div style="width:10px;height:10px;border-radius:50%;background:${tc.bg}"></div>
+            ${done?'✓ Revealed:':'🕯️ Reveal:'} ${t}
+          </div>
+        </button>`;
+      }).join('');
+    } else {
+      standardReveal.style.display='flex';
+      multiReveal.style.display='none';
+    }
+  } else if(gameState.phase !== 'reveal'){
+    standardReveal.style.display='flex';
+    multiReveal.style.display='none';
+  }
 }
 
 // ── HOST END GAME ──
