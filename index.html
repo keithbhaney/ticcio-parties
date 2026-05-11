@@ -1231,7 +1231,10 @@ function renderHeader(){
   };
   let statusExtra='';
   if(gameState.phase==='voting'){
-    const votesCast=Object.keys(gameState.votes||{}).length;
+    let votesCast = Object.keys(gameState.votes||{}).length;
+    if(gameState.multiTeamVoting && gameState.teamVotes){
+      votesCast = Object.values(gameState.teamVotes).reduce((sum,tv)=>sum+Object.keys(tv).length, 0);
+    }
     const pool=gameState.votingPool.length||alive;
     statusExtra=` · ${votesCast}/${pool} votes`;
   } else if(gameState.immuneNames?.length>0&&gameState.phase!=='active'){
@@ -1319,7 +1322,11 @@ function playerCardHTML(p,accent){
 function renderVotingTab(){
   phaseBanner(document.getElementById('phaseBannerVoting'),gameState.phase);
   const alive=gameState.players.filter(p=>!p.eliminated);
-  const alreadyVoted=myVote||(myName&&gameState.votes[myName]);
+  const myPlayer2=gameState.players.find(p=>p.name===myName);
+  const myTeam=myPlayer2?.team;
+  const alreadyVoted=myVote||
+    (myName&&gameState.votes[myName])||
+    (myName&&myTeam&&gameState.teamVotes?.[myTeam]?.[myName]);
   const myPlayer=gameState.players.find(p=>p.name===myName);
   // In individual mode: immune players CAN vote (just can't be voted for)
   // In team mode: only losing team votes
