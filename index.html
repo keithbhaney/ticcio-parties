@@ -1021,6 +1021,7 @@ async function hostNextRound(){
   triviaAnswered=false; lastTriviaStartedAt=null; lastTriviaQ=null;
   sortSubmitted=false; sortOrder=[]; lastSortStartedAt=null;
   nttAnswered=false; lastNttPlaying=false; lastNttStartedAt=null;
+  myVote=null;
   if(picTimerInterval){clearInterval(picTimerInterval);picTimerInterval=null;}
   if(triviaTimerInterval){clearInterval(triviaTimerInterval);triviaTimerInterval=null;}
   if(sortTimerInterval){clearInterval(sortTimerInterval);sortTimerInterval=null;}
@@ -1324,9 +1325,12 @@ function renderVotingTab(){
   const alive=gameState.players.filter(p=>!p.eliminated);
   const myPlayer2=gameState.players.find(p=>p.name===myName);
   const myTeam=myPlayer2?.team;
-  const alreadyVoted=myVote||
-    (myName&&gameState.votes[myName])||
+  // Trust server state over local myVote — server is source of truth
+  const serverVote = (myName&&gameState.votes[myName]) ||
     (myName&&myTeam&&gameState.teamVotes?.[myTeam]?.[myName]);
+  // If server shows no vote and phase is active/challenge, reset local myVote
+  if(!serverVote && (gameState.phase==='active'||gameState.phase==='challenge')) myVote=null;
+  const alreadyVoted = serverVote || myVote;
   const myPlayer=gameState.players.find(p=>p.name===myName);
   // In individual mode: immune players CAN vote (just can't be voted for)
   // In team mode: only losing team votes
@@ -1564,7 +1568,18 @@ function startPolling(){
     await loadState();
     if(gameState.updatedAt!==lastUpdatedAt){
       lastUpdatedAt=gameState.updatedAt;
-      if(myName&&gameState.votes[myName]) myVote=gameState.votes[myName];
+      // Sync myVote from server state — check both flat votes and teamVotes
+      const myTeamVotes = myName && gameState.teamVotes
+        ? Object.values(gameState.teamVotes).find(tv => tv[myName])
+        : null;
+      if(myName && gameState.votes[myName]){
+        myVote = gameState.votes[myName];
+      } else if(myTeamVotes && myTeamVotes[myName]){
+        myVote = myTeamVotes[myName];
+      } else if(gameState.phase === 'active' || gameState.phase === 'challenge'){
+        // New round started — clear local vote state
+        myVote = null;
+      }
       // Reset challenge state when challenge cleared OR replaced with new one
       const sc = gameState.sortChallenge;
       const tc = gameState.triviaChallenge;
