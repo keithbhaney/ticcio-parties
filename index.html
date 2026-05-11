@@ -967,15 +967,21 @@ async function hostOpenVoting(){
   const doubleElim = document.getElementById('doubleElimToggle')?.checked || false;
   const multiTeamToggle = document.getElementById('multiTeamToggle');
   const multiTeam = multiTeamToggle?.checked || false;
+  // Server auto-detects losing teams from immunity state
+  // But allow manual override via checkboxes if host wants
   let losingTeams = [];
   if(multiTeam){
     document.querySelectorAll('.losing-team-cb:checked').forEach(cb => losingTeams.push(cb.value));
-    if(!losingTeams.length){ toast('Select at least one losing team',true); return; }
+    // If none checked, server will auto-detect — that's fine
   }
-  await api('/voting/open',{doubleElim, multiTeam, losingTeams});
+  const res = await api('/voting/open',{doubleElim, multiTeam, losingTeams});
   await loadState(); renderAll();
-  if(multiTeam) toast('Multi-team voting open — '+losingTeams.join(', ')+' voting! 👥');
-  else toast(doubleElim ? 'Voting open — DOUBLE ELIMINATION! ⚡' : 'Voting is open!');
+  if(multiTeam){
+    const teams = res.votingTeams || losingTeams;
+    toast('Multi-team voting open — '+teams.join(', ')+' voting! 👥');
+  } else {
+    toast(doubleElim ? 'Voting open — DOUBLE ELIMINATION! ⚡' : 'Voting is open!');
+  }
 }
 async function hostCloseVoting(){
   await api('/voting/close',{}); await loadState(); renderAll(); toast('Voting closed — reveal when ready');
@@ -1023,6 +1029,9 @@ async function hostNextRound(){
   if(revealBtn){revealBtn.textContent='🕯️ Reveal #1';revealBtn.style.background='';}
   if(document.getElementById('doubleElimToggle')) document.getElementById('doubleElimToggle').checked=false;
   if(document.getElementById('doubleElimLabel')) document.getElementById('doubleElimLabel').textContent='Off';
+  if(document.getElementById('multiTeamToggle')) document.getElementById('multiTeamToggle').checked=false;
+  if(document.getElementById('multiTeamLabel')) document.getElementById('multiTeamLabel').textContent='Off';
+  if(document.getElementById('losingTeamsSelector')) document.getElementById('losingTeamsSelector').style.display='none';
   await loadState(); renderAll(); toast('Round '+gameState.round+' begins!');
 }
 function closeElimModal(){ document.getElementById('elimModal').classList.remove('active'); if(!isHost) showTab('bracket'); }
@@ -2473,26 +2482,30 @@ function renderMultiTeamVotingUI(){
     return;
   }
 
-  // Show multi-team toggle when 3+ teams
+  // Show multi-team toggle when 3+ teams exist
   if(multiToggleWrap) multiToggleWrap.style.display='flex';
 
   const isMulti = multiToggle?.checked || gameState.multiTeamVoting;
 
-  // Show losing team checkboxes when toggled on and not yet voting
-  if(isMulti && gameState.phase === 'active'){
+  // Show losing team checkboxes when multi-team is toggled on
+  // Works in both 'active' and 'challenge' phases (after immunity granted)
+  if(isMulti && (gameState.phase === 'active' || gameState.phase === 'challenge')){
     losingTeamsDiv.style.display='block';
-    const immuneTeam = gameState.players.find(p=>p.immune)?.team;
+    // Auto-detect immune teams
+    const immuneTeams = new Set(gameState.players.filter(p=>p.immune).map(p=>p.team));
     losingCheckboxes.innerHTML = gameState.teams.map(t=>{
       const tc = teamColor(teamIndexOf(t));
-      const isImmune = t === immuneTeam;
-      return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;${isImmune?'opacity:.4':''}">
-        <input type="checkbox" class="losing-team-cb" value="${t}" ${isImmune?'disabled':''} style="width:16px;height:16px;accent-color:${tc.bg}">
+      const isImmune = immuneTeams.has(t);
+      const hasPlayers = gameState.players.some(p=>!p.eliminated&&p.team===t);
+      if(!hasPlayers) return '';
+      return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:${isImmune?'default':'pointer'};opacity:${isImmune?'0.4':'1'}">
+        <input type="checkbox" class="losing-team-cb" value="${t}" ${isImmune?'disabled':''} ${!isImmune?'checked':''} style="width:16px;height:16px;accent-color:${tc.bg}">
         <div style="width:12px;height:12px;border-radius:50%;background:${tc.bg}"></div>
         <span style="font-size:13px;font-weight:700">${t}</span>
-        ${isImmune?'<span class="immune-badge">IMMUNE</span>':''}
+        ${isImmune?'<span class="immune-badge">🛡️ IMMUNE</span>':'<span style="font-size:11px;color:var(--elim);margin-left:auto">will vote</span>'}
       </label>`;
     }).join('');
-  } else {
+  } else if(!isMulti || gameState.phase === 'voting' || gameState.phase === 'reveal'){
     losingTeamsDiv.style.display='none';
   }
 
