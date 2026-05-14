@@ -455,15 +455,15 @@ select.input{cursor:pointer}
         <!-- Name That Tune launcher -->
         <div id="nttLauncher">
           <label>🎵 Name That Tune</label>
-          <input class="input input-sm" id="nttYoutubeUrl" placeholder="Paste YouTube URL..." style="margin-bottom:6px">
           <div style="display:flex;gap:8px;margin-bottom:8px">
-            <div style="flex:1"><label>Start at (seconds)</label>
-              <input class="input input-sm" id="nttStartSeconds" type="number" value="0" min="0" style="margin:0" placeholder="e.g. 30">
+            <div style="flex:1"><label>Song label</label>
+              <input class="input input-sm" id="nttRoundLabel" placeholder="e.g. Song 1 of 5" style="margin:0">
             </div>
-            <div style="flex:1"><label>Round label</label>
-              <input class="input input-sm" id="nttRoundLabel" placeholder="e.g. Round 1" style="margin:0">
+            <div style="flex:1"><label>Timer (seconds)</label>
+              <input class="input input-sm" id="nttTimerSeconds" type="number" value="20" min="5" max="60" style="margin:0">
             </div>
           </div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Play the song yourself — app handles timer &amp; answers</div>
           <button class="btn btn-outline btn-sm" onclick="hostStartNTT()" style="width:100%;margin-bottom:0">🎵 Launch Name That Tune</button>
         </div>
 
@@ -522,12 +522,12 @@ select.input{cursor:pointer}
     <div id="hostNttPanel" style="display:none">
       <div class="host-panel">
         <h4>🎵 Name That Tune — Host Controls</h4>
-        <div id="nttHostPlayer" class="ntt-player" style="display:block">
-          <iframe id="nttHostIframe" src="" allowfullscreen allow="autoplay"></iframe>
-        </div>
+        <div id="nttRoundDisplay" style="font-family:'Cinzel',serif;font-size:16px;color:var(--fire2);margin-bottom:10px;text-align:center"></div>
+        <div id="nttTimerDisplay" class="timer-text" style="display:none"></div>
+        <div class="timer-bar-wrap" id="nttTimerBarWrap" style="display:none"><div class="timer-bar" id="nttHostTimerBar" style="width:100%"></div></div>
         <div class="flex-row" style="margin-bottom:10px">
-          <button class="btn btn-fire btn-sm" onclick="hostNttPlay()">▶ Play</button>
-          <button class="btn btn-danger btn-sm" onclick="hostNttStop()">⏹ Stop</button>
+          <button class="btn btn-fire btn-sm" id="nttStartTimerBtn" onclick="hostNttStartTimer()">▶ Start Timer</button>
+          <button class="btn btn-danger btn-sm" onclick="hostNttStop()">⏹ Open Answers</button>
           <button class="btn btn-success btn-sm" onclick="hostNttEnd()">End + Immunity</button>
         </div>
         <div id="nttSubmissionCount" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
@@ -579,21 +579,19 @@ select.input{cursor:pointer}
 
     <!-- Player NTT UI -->
     <div id="playerNttChallenge" style="display:none">
-      <div style="font-family:'Cinzel',serif;font-size:14px;color:var(--fire2);text-align:center;margin-bottom:12px;letter-spacing:.5px" id="nttRoundLabelDisplay">Name That Tune</div>
+      <div id="nttRoundLabelDisplay" style="font-family:'Cinzel',serif;font-size:15px;color:var(--fire2);text-align:center;margin-bottom:12px;letter-spacing:.5px"></div>
 
-      <!-- Audio player area -->
-      <div id="nttPlayerArea" style="margin-bottom:14px">
-        <div id="nttStatusDisplay" style="text-align:center;padding:24px;background:var(--card2);border-radius:14px;margin-bottom:10px">
-          <div style="font-size:36px;margin-bottom:8px" id="nttStatusIcon">🎵</div>
-          <div style="font-weight:700;color:var(--muted)" id="nttStatusText">Waiting for host to play...</div>
-        </div>
-        <!-- Hidden iframe that actually plays audio -->
-        <iframe id="nttPlayerIframe" src="" style="width:1px;height:1px;opacity:0;position:absolute" allow="autoplay"></iframe>
+      <div id="nttStatusDisplay" style="text-align:center;padding:24px;background:var(--card2);border-radius:14px;margin-bottom:12px">
+        <div style="font-size:40px;margin-bottom:8px" id="nttStatusIcon">🎵</div>
+        <div style="font-weight:700;color:var(--muted)" id="nttStatusText">Get ready — host will play a song!</div>
+      </div>
+      <div id="nttPlayerTimerText" class="timer-text" style="display:none"></div>
+      <div class="timer-bar-wrap" id="nttPlayerTimerBarWrap" style="display:none">
+        <div class="timer-bar" id="nttPlayerTimerBar" style="width:100%"></div>
       </div>
 
-      <!-- Answer form -->
       <div id="nttAnswerForm" class="ntt-answer-form" style="display:none">
-        <div style="font-weight:700;margin-bottom:10px;font-size:14px">What song is this?</div>
+        <div style="font-weight:700;margin-bottom:10px;font-size:15px">🎵 What song was that?</div>
         <label>Artist</label>
         <input class="input" id="nttArtistInput" placeholder="Artist name..." style="margin-bottom:8px">
         <label>Song Title</label>
@@ -1670,56 +1668,95 @@ function toast(msg,isError=false){
 
 // ── NAME THAT TUNE JS ──
 let nttAnswered = false;
-let lastNttPlaying = false;
 let lastNttStartedAt = null;
+let nttHostTimerInterval = null;
+let nttPlayerTimerInterval = null;
 
 async function hostStartNTT(){
-  const url = document.getElementById('nttYoutubeUrl').value.trim();
-  const startSeconds = parseInt(document.getElementById('nttStartSeconds').value)||0;
-  const roundLabel = document.getElementById('nttRoundLabel').value.trim()||'Name That Tune';
-  const immunityType = gameState.defaultImmunityType||'individual';
-  if(!url){ toast('Paste a YouTube URL first',true); return; }
-  const res = await api('/ntt/start',{youtubeUrl:url, startSeconds, roundLabel, immunityType});
-  if(res.error){ toast(res.error,true); return; }
-  await loadState(); renderAll(); toast('Name That Tune launched! 🎵');
+  const roundLabel = document.getElementById('nttRoundLabel').value.trim() || 'Name That Tune';
+  const timerSeconds = parseInt(document.getElementById('nttTimerSeconds').value) || 20;
+  const immunityType = gameState.defaultImmunityType || 'individual';
+  const res = await api('/ntt/start', {roundLabel, timerSeconds, immunityType});
+  if(res.error){ toast(res.error, true); return; }
+  await loadState(); renderAll();
+  toast('Name That Tune launched! 🎵');
 }
 
-async function hostNttPlay(){
-  await api('/ntt/play',{});
-  await loadState(); renderAll();
+async function hostNttStartTimer(){
+  // Signal server to start the timer
+  await api('/ntt/play', {});
+  await loadState();
+  // Start host-side visual timer
+  const ntt = gameState.nttChallenge;
+  if(!ntt) return;
+  startNttHostTimer(ntt.timerSeconds);
+  renderAll();
+  toast('Timer started! Play your song 🎵');
 }
 
 async function hostNttStop(){
-  await api('/ntt/stop',{});
+  // Signal server to stop — opens answer forms on player devices
+  if(nttHostTimerInterval){ clearInterval(nttHostTimerInterval); nttHostTimerInterval=null; }
+  await api('/ntt/stop', {});
   await loadState(); renderAll();
+  toast('Timer stopped — players can now answer');
 }
 
 async function hostNttEnd(){
-  const res = await api('/ntt/end',{});
+  const res = await api('/ntt/end', {});
   await loadState(); renderAll();
   if(res.immuneNames?.length) toast('Immunity: '+res.immuneNames.join(', ')+' 🛡️');
 }
 
 async function hostNttScore(playerName, points){
-  await api('/ntt/score',{playerName,points});
+  await api('/ntt/score', {playerName, points});
   await loadState(); renderNttHostPanel(gameState.nttChallenge);
 }
 
 async function submitNttAnswer(){
   if(nttAnswered) return;
-  if(isPlayerEliminated()){ toast('You have been eliminated!',true); return; }
+  if(isPlayerEliminated()){ toast('You have been voted out — watch only!', true); return; }
   const artist = document.getElementById('nttArtistInput').value.trim();
   const song = document.getElementById('nttSongInput').value.trim();
-  if(!artist&&!song){ toast('Enter at least one answer',true); return; }
+  if(!artist && !song){ toast('Enter at least one answer', true); return; }
   nttAnswered = true;
-  await fetch(API+'/ntt/answer',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({playerName:myName, artist, song})});
+  await fetch(API+'/ntt/answer', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({playerName: myName, artist, song})});
   document.getElementById('nttAnswerForm').style.display='none';
   document.getElementById('nttAnsweredMsg').style.display='block';
 }
 
-function buildYoutubeEmbedUrl(videoId, startSeconds){
-  return `https://www.youtube.com/embed/${videoId}?start=${startSeconds}&autoplay=1&enablejsapi=1&rel=0&modestbranding=1`;
+function startNttHostTimer(seconds){
+  if(nttHostTimerInterval) clearInterval(nttHostTimerInterval);
+  const start = Date.now();
+  const barEl = document.getElementById('nttHostTimerBar');
+  const textEl = document.getElementById('nttTimerDisplay');
+  const barWrap = document.querySelector('#nttHostTimerBar')?.parentElement;
+  if(textEl) textEl.style.display='block';
+  if(barWrap) barWrap.style.display='block';
+  nttHostTimerInterval = setInterval(()=>{
+    const elapsed = (Date.now()-start)/1000;
+    const remaining = Math.max(0, seconds-elapsed);
+    if(textEl){ textEl.textContent=Math.ceil(remaining); textEl.className='timer-text'+(remaining<=5?' urgent':''); }
+    if(barEl) barEl.style.width=((remaining/seconds)*100)+'%';
+    if(remaining<=0){ clearInterval(nttHostTimerInterval); nttHostTimerInterval=null; }
+  }, 200);
+}
+
+function startNttPlayerTimer(seconds, startedAt){
+  if(nttPlayerTimerInterval) clearInterval(nttPlayerTimerInterval);
+  const barEl = document.getElementById('nttPlayerTimerBar');
+  const textEl = document.getElementById('nttPlayerTimerText');
+  const barWrap = document.getElementById('nttPlayerTimerBarWrap');
+  if(textEl) textEl.style.display='block';
+  if(barWrap) barWrap.style.display='block';
+  nttPlayerTimerInterval = setInterval(()=>{
+    const elapsed = (Date.now()-startedAt)/1000;
+    const remaining = Math.max(0, seconds-elapsed);
+    if(textEl){ textEl.textContent=Math.ceil(remaining); textEl.className='timer-text'+(remaining<=5?' urgent':''); }
+    if(barEl) barEl.style.width=((remaining/seconds)*100)+'%';
+    if(remaining<=0){ clearInterval(nttPlayerTimerInterval); nttPlayerTimerInterval=null; }
+  }, 200);
 }
 
 function renderNttForPlayer(ntt){
@@ -1727,79 +1764,68 @@ function renderNttForPlayer(ntt){
   if(!ntt){ wrap.style.display='none'; return; }
   wrap.style.display='block';
 
-  document.getElementById('nttRoundLabelDisplay').textContent = ntt.roundLabel||'Name That Tune';
-
-  const eliminated = isPlayerEliminated();
-  let specBanner = document.getElementById('nttSpectatorBanner');
-  if(!specBanner){
-    specBanner = document.createElement('div');
-    specBanner.id = 'nttSpectatorBanner';
-    specBanner.style.cssText='background:rgba(204,34,0,0.12);border:1px solid rgba(204,34,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-size:13px;color:#FF6655;font-weight:700;display:none';
-    specBanner.textContent="👁️ You've been voted out — watching only";
-    wrap.insertBefore(specBanner, wrap.firstChild);
-  }
-  specBanner.style.display = eliminated ? 'block' : 'none';
-  wrap.style.opacity = eliminated ? '0.7' : '1';
-
-  const statusIcon = document.getElementById('nttStatusIcon');
-  const statusText = document.getElementById('nttStatusText');
-  const iframe = document.getElementById('nttPlayerIframe');
-  const answerForm = document.getElementById('nttAnswerForm');
-  const answeredMsg = document.getElementById('nttAnsweredMsg');
-
-  // Detect new NTT challenge
+  // Detect new challenge
   if(ntt.startedAt !== lastNttStartedAt){
     lastNttStartedAt = ntt.startedAt;
     nttAnswered = false;
-    lastNttPlaying = false;
-    // Reset UI
-    const iframe = document.getElementById('nttPlayerIframe');
-    if(iframe) iframe.src='';
+    if(nttPlayerTimerInterval){ clearInterval(nttPlayerTimerInterval); nttPlayerTimerInterval=null; }
     document.getElementById('nttAnswerForm').style.display='none';
     document.getElementById('nttAnsweredMsg').style.display='none';
+    document.getElementById('nttPlayerTimerText').style.display='none';
+    document.getElementById('nttPlayerTimerBarWrap').style.display='none';
+    document.getElementById('nttArtistInput').value='';
+    document.getElementById('nttSongInput').value='';
   }
-  // Only mark answered if THIS challenge has been answered
+
   const alreadyAnswered = !!(ntt.playerAnswers && ntt.playerAnswers[myName]);
   if(alreadyAnswered) nttAnswered = true;
 
-  if(ntt.playing && !lastNttPlaying){
-    // Host just hit play — load iframe
-    iframe.src = buildYoutubeEmbedUrl(ntt.videoId, ntt.startSeconds||0);
-    lastNttPlaying = true;
-  } else if(!ntt.playing && lastNttPlaying){
-    // Host stopped
-    iframe.src = '';
-    lastNttPlaying = false;
-  }
+  const eliminated = isPlayerEliminated();
+  document.getElementById('nttRoundLabelDisplay').textContent = ntt.roundLabel || 'Name That Tune';
 
-  if(ntt.playing){
-    statusIcon.textContent = '🎵';
-    statusText.textContent = 'Listen carefully...';
-    statusText.style.color = 'var(--fire2)';
-    // Add bouncing bars animation
-    document.getElementById('nttStatusDisplay').innerHTML = `
-      <div style="display:flex;align-items:flex-end;justify-content:center;gap:5px;height:40px;margin-bottom:10px">
-        ${[1,2,3,4,5].map((v,i)=>`<div class="ntt-bar" style="animation-delay:${i*0.1}s"></div>`).join('')}
-      </div>
-      <div style="font-weight:700;color:var(--fire2);font-size:14px">🎵 Playing Now — Listen!</div>`;
+  const statusDisplay = document.getElementById('nttStatusDisplay');
+  const statusIcon = document.getElementById('nttStatusIcon');
+  const statusText = document.getElementById('nttStatusText');
+  const answerForm = document.getElementById('nttAnswerForm');
+  const answeredMsg = document.getElementById('nttAnsweredMsg');
+
+  if(ntt.playing && !ntt.stopped){
+    // Timer running — show countdown
+    statusDisplay.innerHTML = `<div style="display:flex;align-items:flex-end;justify-content:center;gap:5px;height:40px;margin-bottom:10px">
+      ${[1,2,3,4,5].map((_,i)=>`<div class="ntt-bar" style="animation-delay:${i*0.1}s"></div>`).join('')}
+    </div><div style="font-weight:700;color:var(--fire2);font-size:14px">🎵 Listen carefully!</div>`;
+    if(!nttPlayerTimerInterval && ntt.playedAt){
+      startNttPlayerTimer(ntt.timerSeconds, ntt.playedAt);
+    }
+    answerForm.style.display='none';
   } else if(ntt.stopped){
-    document.getElementById('nttStatusDisplay').innerHTML = `
-      <div style="font-size:36px;margin-bottom:8px">⏹️</div>
-      <div style="font-weight:700;color:var(--text)">Music stopped — submit your answer!</div>`;
+    statusDisplay.innerHTML = `<div style="font-size:36px;margin-bottom:8px">⏹️</div><div style="font-weight:700;color:var(--text)">Time is up — submit your answer!</div>`;
+    if(nttPlayerTimerInterval){ clearInterval(nttPlayerTimerInterval); nttPlayerTimerInterval=null; }
+    document.getElementById('nttPlayerTimerText').style.display='none';
+    document.getElementById('nttPlayerTimerBarWrap').style.display='none';
     if(!nttAnswered && !eliminated){
       answerForm.style.display='block';
-      answeredMsg.style.display='none';
     }
   } else {
-    document.getElementById('nttStatusDisplay').innerHTML = `
-      <div style="font-size:36px;margin-bottom:8px">🎵</div>
-      <div style="font-weight:700;color:var(--muted)">Waiting for host to play...</div>`;
+    statusDisplay.innerHTML = `<div style="font-size:40px;margin-bottom:8px">🎵</div><div style="font-weight:700;color:var(--muted)">Get ready — host will play a song!</div>`;
   }
 
   if(nttAnswered){
     answerForm.style.display='none';
     answeredMsg.style.display='block';
   }
+
+  // Spectator banner for eliminated
+  let specBanner = document.getElementById('nttSpectatorBanner');
+  if(!specBanner){
+    specBanner = document.createElement('div');
+    specBanner.id='nttSpectatorBanner';
+    specBanner.style.cssText='background:rgba(204,34,0,0.12);border:1px solid rgba(204,34,0,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;text-align:center;font-size:13px;color:#FF6655;font-weight:700;display:none';
+    specBanner.textContent='Voted out — watching only';
+    wrap.insertBefore(specBanner, wrap.firstChild);
+  }
+  specBanner.style.display = eliminated ? 'block' : 'none';
+  wrap.style.opacity = eliminated ? '0.7' : '1';
 }
 
 function renderNttHostPanel(ntt){
@@ -1807,23 +1833,21 @@ function renderNttHostPanel(ntt){
   if(!ntt){ panel.style.display='none'; return; }
   panel.style.display='block';
 
-  // Load iframe if not yet loaded
-  const iframe = document.getElementById('nttHostIframe');
-  if(!iframe.src||iframe.src==='about:blank'||iframe.src===''){
-    iframe.src = `https://www.youtube.com/embed/${ntt.videoId}?start=${ntt.startSeconds||0}&rel=0&modestbranding=1`;
-  }
+  document.getElementById('nttRoundDisplay').textContent = ntt.roundLabel || 'Name That Tune';
 
   const submitted = Object.keys(ntt.playerAnswers||{}).length;
   const alive = gameState.players.filter(p=>!p.eliminated).length;
   document.getElementById('nttSubmissionCount').textContent = `${submitted}/${alive} players submitted`;
 
-  // Scoring list
   const players = gameState.players.filter(p=>!p.eliminated);
+  const scores = ntt.scores || {};
+  const answers = ntt.playerAnswers || {};
+
   document.getElementById('nttScoringList').innerHTML = players.map(p=>{
-    const ans = ntt.playerAnswers?.[p.name];
-    const score = ntt.scores?.[p.name]??null;
-    if(!ans) return `<div style="padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px;font-size:12px;color:var(--muted);display:flex;justify-content:space-between">
-      <span style="font-weight:700">${p.name}</span><span>Not submitted yet</span></div>`;
+    const ans = answers[p.name];
+    const score = scores[p.name] ?? null;
+    if(!ans) return `<div style="padding:8px 10px;background:var(--card2);border-radius:8px;margin-bottom:6px;display:flex;justify-content:space-between;font-size:12px">
+      <span style="font-weight:700">${p.name}</span><span style="color:var(--muted)">Not submitted</span></div>`;
     return `<div style="padding:10px 12px;background:var(--card2);border-radius:10px;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <span style="font-weight:700;font-size:13px">${p.name}</span>
@@ -1841,12 +1865,6 @@ function renderNttHostPanel(ntt){
   }).join('');
 }
 
-// ── ELIMINATED PLAYER GUARD ──
-function isPlayerEliminated(){
-  if(!myName||myName==='__host__') return false;
-  const me=gameState.players.find(p=>p.name===myName);
-  return me?me.eliminated:false;
-}
 
 // ── SORT IT JS ──
 let sortTimerInterval = null;
