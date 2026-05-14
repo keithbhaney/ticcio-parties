@@ -1150,8 +1150,10 @@ function renderPicChallenge(pc){
   const clientQuestions = PIC_DB[pc.category]?.questions;
   grid.innerHTML=pc.questions.map((q,i)=>{
     // q.index tells us which PIC_DB question to show (server shuffled the order)
-    const qIdx = q.index !== undefined ? q.index : i;
-    const clientQ = clientQuestions ? clientQuestions[qIdx % clientQuestions.length] : null;
+    // Fall back to sequential order if index missing (old state format)
+    const qIdx = (q.index !== undefined && q.index !== null) ? q.index : i;
+    const safeIdx = Math.min(qIdx, (clientQuestions?.length || 1) - 1);
+    const clientQ = clientQuestions ? clientQuestions[safeIdx] : null;
     const imgSrc = clientQ ? clientQ.image : '';
     const hint = q.hint || (clientQ ? clientQ.hint : '');
     return `<div class="pic-item ${picAnswers[i]?'answered':''}" id="picItem${i}">
@@ -2852,39 +2854,39 @@ function renderTeamReassign(){
 // Images fetched directly in browser, bypassing server CORS issues
 const PIC_DB = {
   paintings: { label:"🖼️ Famous Paintings", questions:[
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/402px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg", answers:["mona lisa"], hint:"Leonardo da Vinci · Louvre, Paris" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg/757px-Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg", answers:["the starry night","starry night"], hint:"Vincent van Gogh · 1889" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg/461px-Edvard_Munch%2C_1893%2C_The_Scream%2C_oil%2C_tempera_and_pastel_on_cardboard%2C_91_x_73_cm%2C_National_Gallery_of_Norway.jpg", answers:["the scream","scream"], hint:"Edvard Munch · 1893" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/1665_Girl_with_a_Pearl_Earring.jpg/747px-1665_Girl_with_a_Pearl_Earring.jpg", answers:["girl with a pearl earring","pearl earring"], hint:"Johannes Vermeer · 1665" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Gustave_Caillebotte_-_Paris_Street%3B_Rainy_Day_-_Google_Art_Project.jpg/1024px-Gustave_Caillebotte_-_Paris_Street%3B_Rainy_Day_-_Google_Art_Project.jpg", answers:["paris street rainy day","rainy day"], hint:"Gustave Caillebotte · 1877" }
+    { image:"https://ticcio-parties.netlify.app/images/paintings/mona-lisa.jpg", answers:["mona lisa"], hint:"Leonardo da Vinci · Louvre, Paris" },
+    { image:"https://ticcio-parties.netlify.app/images/paintings/starry-night.jpg", answers:["the starry night","starry night"], hint:"Vincent van Gogh · 1889" },
+    { image:"https://ticcio-parties.netlify.app/images/paintings/the-scream.jpg", answers:["the scream","scream"], hint:"Edvard Munch · 1893" },
+    { image:"https://ticcio-parties.netlify.app/images/paintings/pearl-earring.jpg", answers:["girl with a pearl earring","pearl earring"], hint:"Johannes Vermeer · 1665" },
+    { image:"https://ticcio-parties.netlify.app/images/paintings/birth-of-venus.jpg", answers:["the birth of venus","birth of venus"], hint:"Sandro Botticelli · 1484" }
   ]},
   cities: { label:"🌆 Cities", questions:[
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/Sydney_Opera_House_-_Dec_2008.jpg/1024px-Sydney_Opera_House_-_Dec_2008.jpg", answers:["sydney"], hint:"Opera House · Australia" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/Colosseum_in_Rome-April_2007-1-_copie_2B.jpg/1024px-Colosseum_in_Rome-April_2007-1-_copie_2B.jpg", answers:["rome"], hint:"Ancient amphitheater · Eternal City" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Hagia_Sophia_mosque_amk.jpg/1024px-Hagia_Sophia_mosque_amk.jpg", answers:["istanbul"], hint:"Hagia Sophia · Turkey" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Machu_Picchu%2C_Peru.jpg/1024px-Machu_Picchu%2C_Peru.jpg", answers:["machu picchu"], hint:"Ancient Incan citadel · Peru" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Southwest_corner_of_Central_Park%2C_looking_east%2C_NYC.jpg/1024px-Southwest_corner_of_Central_Park%2C_looking_east%2C_NYC.jpg", answers:["new york","new york city","nyc"], hint:"Central Park · The Big Apple" }
+    { image:"https://ticcio-parties.netlify.app/images/cities/sydney.jpg", answers:["sydney"], hint:"Opera House · Australia" },
+    { image:"https://ticcio-parties.netlify.app/images/cities/rome.jpg", answers:["rome"], hint:"Colosseum · Eternal City, Italy" },
+    { image:"https://ticcio-parties.netlify.app/images/cities/istanbul.jpg", answers:["istanbul"], hint:"Hagia Sophia · Turkey" },
+    { image:"https://ticcio-parties.netlify.app/images/cities/machu-picchu.jpg", answers:["machu picchu"], hint:"Ancient Incan citadel · Peru" },
+    { image:"https://ticcio-parties.netlify.app/images/cities/new-york.jpg", answers:["new york","new york city","nyc"], hint:"Central Park · The Big Apple" }
   ]},
   politicians: { label:"🏛️ Politicians", questions:[
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Abraham_Lincoln_O-77_matte_collodion_print.jpg/562px-Abraham_Lincoln_O-77_matte_collodion_print.jpg", answers:["abraham lincoln","lincoln"], hint:"16th US President · Gettysburg Address" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/President_Barack_Obama.jpg/800px-President_Barack_Obama.jpg", answers:["barack obama","obama"], hint:"44th US President" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Churchill_V_sign_HU_55521.jpg/600px-Churchill_V_sign_HU_55521.jpg", answers:["winston churchill","churchill"], hint:"British WWII Prime Minister" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Jfk2.jpg/578px-Jfk2.jpg", answers:["john f kennedy","jfk","kennedy"], hint:"35th US President · assassinated 1963" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/Nelson_Mandela-2008_%28edit%29.jpg/440px-Nelson_Mandela-2008_%28edit%29.jpg", answers:["nelson mandela","mandela"], hint:"South Africa · anti-apartheid leader" }
+    { image:"https://ticcio-parties.netlify.app/images/politicians/lincoln.jpg", answers:["abraham lincoln","lincoln"], hint:"16th US President · Gettysburg Address" },
+    { image:"https://ticcio-parties.netlify.app/images/politicians/obama.jpg", answers:["barack obama","obama"], hint:"44th US President" },
+    { image:"https://ticcio-parties.netlify.app/images/politicians/churchill.jpg", answers:["winston churchill","churchill"], hint:"British WWII Prime Minister" },
+    { image:"https://ticcio-parties.netlify.app/images/politicians/jfk.jpg", answers:["john f kennedy","jfk","kennedy","john kennedy"], hint:"35th US President · assassinated 1963" },
+    { image:"https://ticcio-parties.netlify.app/images/politicians/mandela.jpg", answers:["nelson mandela","mandela"], hint:"South Africa · anti-apartheid leader" }
   ]},
   athletes: { label:"🏆 Athletes", questions:[
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Usain_Bolt_Olympics_cropped.jpg/600px-Usain_Bolt_Olympics_cropped.jpg", answers:["usain bolt","bolt"], hint:"World's fastest man · Jamaica" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Muhammad_Ali_NYWTS.jpg/440px-Muhammad_Ali_NYWTS.jpg", answers:["muhammad ali","ali","cassius clay"], hint:"The Greatest · heavyweight boxing" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Roger_Federer_2012_Wimbledon.jpg/800px-Roger_Federer_2012_Wimbledon.jpg", answers:["roger federer","federer"], hint:"Swiss tennis legend · 8x Wimbledon" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Elvis_Presley_promoting_Jailhouse_Rock.jpg/600px-Elvis_Presley_promoting_Jailhouse_Rock.jpg", answers:["elvis presley","elvis"], hint:"The King of Rock and Roll" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Pele_con_brasil.jpg/440px-Pele_con_brasil.jpg", answers:["pele","pelé"], hint:"Brazilian soccer legend · 3x World Cup" }
+    { image:"https://ticcio-parties.netlify.app/images/athletes/usain-bolt.jpg", answers:["usain bolt","bolt"], hint:"World's fastest man · Jamaica" },
+    { image:"https://ticcio-parties.netlify.app/images/athletes/muhammad-ali.jpg", answers:["muhammad ali","ali","cassius clay"], hint:"The Greatest · heavyweight boxing" },
+    { image:"https://ticcio-parties.netlify.app/images/athletes/federer.jpg", answers:["roger federer","federer"], hint:"Swiss tennis legend · 8x Wimbledon" },
+    { image:"https://ticcio-parties.netlify.app/images/athletes/caitlin.jpg", answers:["caitlin clark","clark"], hint:"Iowa Hawkeyes · Indiana Fever" },
+    { image:"https://ticcio-parties.netlify.app/images/athletes/pele.jpg", answers:["pele","pelé"], hint:"Brazilian soccer legend · 3x World Cup" }
   ]},
   animals: { label:"🐾 Animals", questions:[
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat_03.jpg/1024px-Cat_03.jpg", answers:["cat"], hint:"Common household pet · says meow" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/Koala_climbing_tree.jpg/600px-Koala_climbing_tree.jpg", answers:["koala"], hint:"Australian marsupial · loves eucalyptus" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/Nile_crocodile_head.jpg/1024px-Nile_crocodile_head.jpg", answers:["crocodile","nile crocodile"], hint:"Large reptile · Africa" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Eublepharis_macularius_2009_G1.jpg/1024px-Eublepharis_macularius_2009_G1.jpg", answers:["leopard gecko","gecko"], hint:"Small spotted lizard · popular exotic pet" },
-    { image:"https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Tikal-oso_hormiguero.jpg/800px-Tikal-oso_hormiguero.jpg", answers:["anteater","giant anteater"], hint:"Long snout · eats thousands of ants daily" }
+    { image:"https://ticcio-parties.netlify.app/images/animals/koala.jpg", answers:["koala"], hint:"Australian marsupial · loves eucalyptus" },
+    { image:"https://ticcio-parties.netlify.app/images/animals/crocodile.jpg", answers:["crocodile","nile crocodile"], hint:"Large reptile · Africa" },
+    { image:"https://ticcio-parties.netlify.app/images/animals/anteater.jpg", answers:["anteater","giant anteater"], hint:"Long snout · eats thousands of ants daily" },
+    { image:"https://ticcio-parties.netlify.app/images/animals/snow-leopard.jpg", answers:["snow leopard","leopard"], hint:"Big cat · Central Asia mountains" },
+    { image:"https://ticcio-parties.netlify.app/images/animals/narwhal.jpg", answers:["narwhal"], hint:"Unicorn of the sea · Arctic whale" }
   ]}
 };
 
