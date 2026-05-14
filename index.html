@@ -1709,8 +1709,11 @@ async function hostNttEnd(){
 }
 
 async function hostNttScore(playerName, points){
-  await api('/ntt/score', {playerName, points});
+  const res = await api('/ntt/score', {playerName, points});
   await loadState(); renderNttHostPanel(gameState.nttChallenge);
+  if(res.score !== undefined && points > 0){
+    toast(playerName+' scored '+res.score+' pts 🎵');
+  }
 }
 
 async function submitNttAnswer(){
@@ -1855,6 +1858,7 @@ function renderNttHostPanel(ntt){
       </div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
         Artist: <span style="color:var(--text)">${ans.artist||'—'}</span> · Song: <span style="color:var(--text)">${ans.song||'—'}</span>
+        ${ans.timeTaken!==undefined?`<span style="margin-left:6px;color:var(--fire2)">⚡ ${ans.timeTaken.toFixed(1)}s</span>`:''}
       </div>
       <div style="display:flex;gap:6px">
         <button class="btn btn-ghost btn-sm" onclick="hostNttScore('${p.name}',0)" style="font-size:11px;flex:1;${score===0?'background:rgba(204,34,0,0.3);color:var(--elim)':''}">❌ Wrong</button>
