@@ -1895,6 +1895,13 @@ function renderNttHostPanel(ntt){
 }
 
 
+// ── PLAYER HELPERS ──
+function isPlayerEliminated(){
+  if(!myName || myName==='__host__' || isHost) return false;
+  const me = gameState.players.find(p => p.name === myName);
+  return me ? me.eliminated : false;
+}
+
 // ── SORT IT JS ──
 let sortTimerInterval = null;
 let sortSubmitted = false;
